@@ -8,6 +8,8 @@ from pathlib import Path
 from .analyzer import analyze_video
 from .channels import add_favorite_channel, discover_channels, load_favorites
 from .config import Settings
+from .enrich import build_enrichment, cosine_similarity, infer_topics
+from .indexing import index_video, load_indexed_videos, sync_favorites_to_db
 from .reporting import write_json, write_markdown_report
 from .youtube import collect_video_data
 
@@ -24,11 +26,16 @@ def run_analyze(settings: Settings, url: str) -> dict[str, str]:
     write_json(analysis_path, analysis.to_dict())
     write_markdown_report(report_path, video, analysis)
 
+    transcript_text = '\n'.join(item.get('text', '') for item in video.transcript)
+    enrich = build_enrichment(analysis.summary, transcript_text)
+    index_video(settings, asdict(video), analysis.to_dict(), enrich=enrich)
+
     return {
         'video_id': video.video_id,
         'raw': str(raw_path),
         'analysis': str(analysis_path),
         'report': str(report_path),
+        'db': str(settings.db_path),
     }
 
 
@@ -68,6 +75,7 @@ def cmd_discover_channels(args: argparse.Namespace) -> int:
 
 def cmd_save_channel(args: argparse.Namespace) -> int:
     project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
     record = add_favorite_channel(
         project_root=project_root,
         name=args.name,
@@ -77,6 +85,7 @@ def cmd_save_channel(args: argparse.Namespace) -> int:
         note=args.note or '',
         tags=[tag.strip() for tag in (args.tags or '').split(',') if tag.strip()],
     )
+    sync_favorites_to_db(settings, load_favorites(project_root))
     print(json.dumps(record, ensure_ascii=False, indent=2))
     return 0
 
@@ -85,6 +94,65 @@ def cmd_list_favorites(args: argparse.Namespace) -> int:
     project_root = Path(__file__).resolve().parents[2]
     records = load_favorites(project_root)
     print(json.dumps(records, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_reindex(args: argparse.Namespace) -> int:
+    project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
+    for raw_path in sorted(settings.raw_root.glob('*.json')):
+        if raw_path.name.endswith('.analysis.json'):
+            continue
+        analysis_path = settings.raw_root / f'{raw_path.stem}.analysis.json'
+        if not analysis_path.exists():
+            continue
+        raw = json.loads(raw_path.read_text(encoding='utf-8'))
+        analysis = json.loads(analysis_path.read_text(encoding='utf-8'))
+        transcript = raw.get('transcript') or []
+        transcript_text = '\n'.join(item.get('text', '') for item in transcript)
+        enrich = build_enrichment(analysis.get('summary', ''), transcript_text)
+        index_video(settings, raw, analysis, enrich=enrich)
+    sync_favorites_to_db(settings, load_favorites(project_root))
+    rows = load_indexed_videos(settings)
+    labels = infer_topics([row.get('summary') or '' for row in rows])
+    print(json.dumps({'indexed_videos': len(rows), 'topic_labels_generated': len(labels)}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_similar(args: argparse.Namespace) -> int:
+    project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
+    rows = load_indexed_videos(settings)
+    target = next((row for row in rows if row.get('video_id') == args.video_id), None)
+    if not target:
+        raise SystemExit(f'Không thấy video_id={args.video_id} trong index')
+    target_vec = json.loads(target.get('embedding_json') or '[]')
+    scored = []
+    for row in rows:
+        if row.get('video_id') == args.video_id:
+            continue
+        vec = json.loads(row.get('embedding_json') or '[]')
+        score = cosine_similarity(target_vec, vec)
+        if score > 0:
+            scored.append({
+                'video_id': row.get('video_id'),
+                'title': row.get('title'),
+                'channel': row.get('channel'),
+                'score': round(score, 4),
+            })
+    scored.sort(key=lambda x: x['score'], reverse=True)
+    print(json.dumps(scored[: args.limit], ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_keywords(args: argparse.Namespace) -> int:
+    project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
+    rows = load_indexed_videos(settings)
+    target = next((row for row in rows if row.get('video_id') == args.video_id), None)
+    if not target:
+        raise SystemExit(f'Không thấy video_id={args.video_id} trong index')
+    print(json.dumps(json.loads(target.get('keywords_json') or '[]'), ensure_ascii=False, indent=2))
     return 0
 
 
@@ -117,6 +185,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     favorites = sub.add_parser('list-favorites', help='Xem danh sách kênh yêu thích')
     favorites.set_defaults(func=cmd_list_favorites)
+
+    reindex = sub.add_parser('reindex', help='Đưa toàn bộ JSON hiện có vào DuckDB + enrich optional')
+    reindex.set_defaults(func=cmd_reindex)
+
+    similar = sub.add_parser('similar-videos', help='Tìm video tương tự bằng embeddings nếu có')
+    similar.add_argument('video_id', help='Video ID nguồn')
+    similar.add_argument('--limit', type=int, default=5)
+    similar.set_defaults(func=cmd_similar)
+
+    keywords = sub.add_parser('keywords', help='Xem keywords đã extract của 1 video')
+    keywords.add_argument('video_id', help='Video ID')
+    keywords.set_defaults(func=cmd_keywords)
     return parser
 
 
