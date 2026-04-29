@@ -61,7 +61,7 @@ def cmd_batch(args: argparse.Namespace) -> int:
 def cmd_discover_channels(args: argparse.Namespace) -> int:
     project_root = Path(__file__).resolve().parents[2]
     settings = Settings.load(project_root)
-    results = discover_channels(args.topic, api_key=settings.youtube_api_key or '', limit=args.limit)
+    results = discover_channels(args.topic, api_key=settings.youtube_api_key or '', limit=args.limit, sort_by=args.sort_by)
     print(json.dumps(results, ensure_ascii=False, indent=2))
     return 0
 
@@ -103,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     discover = sub.add_parser('discover-channels', help='Tìm kênh YouTube theo chủ đề')
     discover.add_argument('topic', help='Chủ đề cần tìm')
     discover.add_argument('--limit', type=int, default=8, help='Số lượng kết quả tối đa')
+    discover.add_argument('--sort-by', choices=['relevance', 'subs'], default='relevance', help='Cách sắp xếp kết quả')
     discover.set_defaults(func=cmd_discover_channels)
 
     save = sub.add_parser('save-channel', help='Lưu kênh vào danh sách yêu thích')

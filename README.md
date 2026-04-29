@@ -90,8 +90,12 @@ Mỗi video sẽ tạo ra:
 
 ## Tìm kênh theo chủ đề
 ```bash
-./run.sh discover-channels "bóng đá chiến thuật" --limit 8
+./run.sh discover-channels "bóng đá chiến thuật" --limit 8 --sort-by relevance
 ```
+
+Có thể đổi cách sắp xếp:
+- `--sort-by relevance`
+- `--sort-by subs`
 
 Logic hiện tại:
 - tìm **video** theo chủ đề trước

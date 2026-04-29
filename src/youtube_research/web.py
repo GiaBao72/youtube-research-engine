@@ -237,11 +237,12 @@ def analyze() -> str:
 @app.get('/discover')
 def discover_page() -> str:
     topic = (request.args.get('topic') or '').strip()
+    sort_by = (request.args.get('sort_by') or 'relevance').strip()
     channels = []
     error = ''
     if topic:
         try:
-            channels = discover_channels(topic, api_key=SETTINGS.youtube_api_key or '', limit=8)
+            channels = discover_channels(topic, api_key=SETTINGS.youtube_api_key or '', limit=8, sort_by=sort_by)
         except Exception as exc:
             error = f'{type(exc).__name__}: {exc}'
 
@@ -284,6 +285,10 @@ def discover_page() -> str:
         <p>Nhập niche/chủ đề để tìm các kênh YouTube phù hợp. Hệ thống sẽ tìm video theo chủ đề trước, rồi gom lại thành các kênh liên quan nhất — đỡ bị lệch chỉ vì tên kênh chứa keyword.</p>
         <form method="get" action="/discover">
           <input type="text" name="topic" value="{html.escape(topic)}" placeholder="VD: bóng đá chiến thuật, giáo dục con cái, review sách">
+          <select name="sort_by" style="width:100%; border-radius:14px; border:1px solid #33406f; background:#0f1631; color:#fff; padding:14px; font:inherit;">
+            <option value="relevance" {'selected' if sort_by == 'relevance' else ''}>Sắp xếp theo độ liên quan</option>
+            <option value="subs" {'selected' if sort_by == 'subs' else ''}>Sắp xếp theo subscriber</option>
+          </select>
           <div class="actions">
             <button type="submit">Tìm kênh</button>
             <a class="btn secondary" href="/favorites">Xem yêu thích</a>

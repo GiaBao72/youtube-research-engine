@@ -9,7 +9,7 @@ from typing import Any
 import requests
 
 
-def discover_channels(topic: str, api_key: str, limit: int = 10) -> list[dict[str, Any]]:
+def discover_channels(topic: str, api_key: str, limit: int = 10, sort_by: str = 'relevance') -> list[dict[str, Any]]:
     if not api_key:
         raise RuntimeError('Thiếu YOUTUBE_API_KEY trong .env')
 
@@ -62,14 +62,24 @@ def discover_channels(topic: str, api_key: str, limit: int = 10) -> list[dict[st
             'sample_video_titles': sample_titles,
         })
 
-    results.sort(
-        key=lambda x: (
-            x.get('relevance_score') or 0,
-            x.get('matched_video_count') or 0,
-            int(x.get('subscriber_count') or 0),
-        ),
-        reverse=True,
-    )
+    if sort_by == 'subs':
+        results.sort(
+            key=lambda x: (
+                int(x.get('subscriber_count') or 0),
+                x.get('relevance_score') or 0,
+                x.get('matched_video_count') or 0,
+            ),
+            reverse=True,
+        )
+    else:
+        results.sort(
+            key=lambda x: (
+                x.get('relevance_score') or 0,
+                x.get('matched_video_count') or 0,
+                int(x.get('subscriber_count') or 0),
+            ),
+            reverse=True,
+        )
     return results[:limit]
 
 
