@@ -27,7 +27,29 @@ Trả về JSON hợp lệ với schema:
   "hook_variants": ["..."],
   "shorts_ideas": ["..."],
   "next_video_ideas": ["..."],
-  "rewrite_outline": ["..."]
+  "rewrite_outline": ["..."],
+  "deep_analysis": {
+    "scores": {
+      "hook_strength": 0,
+      "pacing": 0,
+      "shorts_potential": 0,
+      "clarity": 0,
+      "retention_potential": 0
+    },
+    "content_drivers": ["..."],
+    "timeline_map": [
+      {"time": "MM:SS", "label": "...", "why_it_matters": "..."}
+    ],
+    "weak_spots": ["..."],
+    "best_cut_moments": [
+      {"time": "MM:SS", "reason": "...", "clip_angle": "..."}
+    ],
+    "rewrite_modes": {
+      "viral": ["..."],
+      "educational": ["..."],
+      "storytelling": ["..."]
+    }
+  }
 }
 Yêu cầu:
 - Viết bằng tiếng Việt.
@@ -37,6 +59,8 @@ Yêu cầu:
 - hook_variants: 5 mục
 - shorts_ideas: 3-5 mục
 - next_video_ideas: 3-5 mục
+- scores chấm theo thang 10
+- deep_analysis phải hữu ích cho editor/writer/strategist
 '''
 
 
@@ -54,6 +78,7 @@ class AnalysisResult:
     shorts_ideas: list[str]
     next_video_ideas: list[str]
     rewrite_outline: list[str]
+    deep_analysis: dict[str, Any]
     analysis_mode: str = 'llm'
     fallback_reason: str | None = None
 
@@ -101,9 +126,32 @@ def analyze_video(settings: Settings, video: VideoData) -> AnalysisResult:
         )
         content = response.choices[0].message.content
         data = json.loads(content)
+        if 'deep_analysis' not in data:
+            data['deep_analysis'] = default_deep_analysis()
         return AnalysisResult(**data, analysis_mode='llm')
     except Exception as exc:
         return build_fallback_analysis(video, f'{type(exc).__name__}: {exc}')
+
+
+def default_deep_analysis() -> dict[str, Any]:
+    return {
+        'scores': {
+            'hook_strength': 5,
+            'pacing': 5,
+            'shorts_potential': 5,
+            'clarity': 5,
+            'retention_potential': 5,
+        },
+        'content_drivers': [],
+        'timeline_map': [],
+        'weak_spots': [],
+        'best_cut_moments': [],
+        'rewrite_modes': {
+            'viral': [],
+            'educational': [],
+            'storytelling': [],
+        },
+    }
 
 
 def build_fallback_analysis(video: VideoData, reason: str) -> AnalysisResult:
@@ -132,6 +180,44 @@ def build_fallback_analysis(video: VideoData, reason: str) -> AnalysisResult:
             'reason': 'Đoạn mở đầu hoặc đoạn sớm trong transcript, hữu ích để rà nhanh nội dung.',
             'quote': quote[:180],
         })
+
+    deep = default_deep_analysis()
+    deep['scores'] = {
+        'hook_strength': 6,
+        'pacing': 5,
+        'shorts_potential': 6,
+        'clarity': 6,
+        'retention_potential': 5,
+    }
+    deep['content_drivers'] = [
+        'Chủ đề xuất hiện sớm trong transcript',
+        'Có các câu mở đầu có thể dùng làm hook/cut',
+    ]
+    deep['timeline_map'] = [
+        {
+            'time': item['time'],
+            'label': 'Mốc đáng xem nhanh',
+            'why_it_matters': item['reason'],
+        }
+        for item in notable_moments[:3]
+    ]
+    deep['weak_spots'] = [
+        'Bản fallback chưa đánh giá sâu các đoạn tụt nhịp.',
+        'Cần chạy lại LLM để có nhận định sâu hơn về pacing và retention.',
+    ]
+    deep['best_cut_moments'] = [
+        {
+            'time': item['time'],
+            'reason': 'Có câu nói đủ ngắn để cắt clip thử nghiệm.',
+            'clip_angle': item['quote'][:100],
+        }
+        for item in notable_moments[:3]
+    ]
+    deep['rewrite_modes'] = {
+        'viral': ['Mở mạnh hơn ngay 5 giây đầu', 'Đưa câu gây tò mò lên trước khi giải thích'],
+        'educational': ['Nêu bài học chính trước', 'Chia lại nội dung theo 3 ý rõ ràng'],
+        'storytelling': ['Mở bằng tình huống', 'Tăng nhịp ở các đoạn chuyển ý'],
+    }
 
     return AnalysisResult(
         summary=(
@@ -162,9 +248,7 @@ def build_fallback_analysis(video: VideoData, reason: str) -> AnalysisResult:
             'Insight nào có thể tách ra thành clip ngắn?',
             'Điểm nào khiến người xem muốn ở lại tiếp?',
         ],
-        shorts_ideas=[
-            quote[:100] for quote in first_quotes[:3]
-        ] or [
+        shorts_ideas=[quote[:100] for quote in first_quotes[:3]] or [
             'Cắt 1 câu mở đầu mạnh từ transcript',
             'Lấy 1 đoạn giải thích ngắn làm Shorts',
             'Biến 1 insight chính thành clip 30-45 giây',
@@ -180,6 +264,7 @@ def build_fallback_analysis(video: VideoData, reason: str) -> AnalysisResult:
             'Đưa 2-3 luận điểm hoặc ví dụ nổi bật',
             'Kết bằng insight ngắn gọn + CTA',
         ],
+        deep_analysis=deep,
         analysis_mode='fallback',
         fallback_reason=reason,
     )

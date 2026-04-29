@@ -43,6 +43,27 @@ def write_markdown_report(path: Path, video: VideoData, analysis: AnalysisResult
     if analysis.fallback_reason:
         fallback_note = f'\n- **Lý do fallback:** {analysis.fallback_reason}'
 
+    deep = analysis.deep_analysis or {}
+    scores = deep.get('scores', {})
+    score_lines = '\n'.join(f'- **{k}**: {v}/10' for k, v in scores.items()) or '- N/A'
+    timeline_map = _notable([
+        {
+            'time': item.get('time', '??:??'),
+            'reason': item.get('why_it_matters', ''),
+            'quote': item.get('label', ''),
+        }
+        for item in deep.get('timeline_map', [])
+    ])
+    best_cuts = _notable([
+        {
+            'time': item.get('time', '??:??'),
+            'reason': item.get('reason', ''),
+            'quote': item.get('clip_angle', ''),
+        }
+        for item in deep.get('best_cut_moments', [])
+    ])
+    rewrite_modes = deep.get('rewrite_modes', {})
+
     md = f'''# YouTube Research Report
 
 - **Video ID:** {video.video_id}
@@ -89,5 +110,29 @@ def write_markdown_report(path: Path, video: VideoData, analysis: AnalysisResult
 
 ## Outline viết lại
 {_bullet(analysis.rewrite_outline)}
+
+## Deep Analysis - Scores
+{score_lines}
+
+## Deep Analysis - Content Drivers
+{_bullet(deep.get('content_drivers', []))}
+
+## Deep Analysis - Timeline Map
+{timeline_map}
+
+## Deep Analysis - Weak Spots
+{_bullet(deep.get('weak_spots', []))}
+
+## Deep Analysis - Best Cut Moments
+{best_cuts}
+
+## Deep Analysis - Rewrite Modes (Viral)
+{_bullet(rewrite_modes.get('viral', []))}
+
+## Deep Analysis - Rewrite Modes (Educational)
+{_bullet(rewrite_modes.get('educational', []))}
+
+## Deep Analysis - Rewrite Modes (Storytelling)
+{_bullet(rewrite_modes.get('storytelling', []))}
 '''
     path.write_text(md, encoding='utf-8')

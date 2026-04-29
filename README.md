@@ -63,6 +63,14 @@ YRE_LANGUAGE=vi
 ./run.sh analyze "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
+Bản hiện tại có thêm lớp **Deep Video Analysis** trong output:
+- scores (hook / pacing / shorts potential / clarity / retention potential)
+- content drivers
+- timeline map
+- weak spots
+- best cut moments
+- rewrite modes (viral / educational / storytelling)
+
 ## Chạy nhiều video
 ```bash
 ./run.sh batch \
