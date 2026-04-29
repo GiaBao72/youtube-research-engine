@@ -6,7 +6,7 @@ from pathlib import Path
 
 from flask import Flask, Response, redirect, request, send_file, url_for
 
-from .channels import add_favorite_channel, discover_channels, load_favorites
+from .channels import add_favorite_channel, discover_channels, fetch_channel_videos, load_favorites
 from .cli import run_analyze
 from .config import Settings
 
@@ -112,7 +112,7 @@ def _page(body: str, script: str = '') -> str:
     h3 {{ margin: 0 0 10px; font-size: 22px; }}
     p {{ color: #aab3cf; line-height: 1.6; }}
     form {{ display: grid; gap: 12px; margin-top: 16px; }}
-    textarea, input {{ width: 100%; border-radius: 14px; border: 1px solid #33406f; background: #0f1631; color: #fff; padding: 14px; font: inherit; }}
+    textarea, input, select {{ width: 100%; border-radius: 14px; border: 1px solid #33406f; background: #0f1631; color: #fff; padding: 14px; font: inherit; }}
     textarea {{ min-height: 128px; resize: vertical; }}
     button, .btn {{ border: 0; border-radius: 12px; background: #4f46e5; color: white; padding: 12px 18px; font-weight: 600; cursor: pointer; width: fit-content; text-decoration:none; display:inline-block; }}
     .btn.secondary {{ background: #1f2a4d; color: #c7d2fe; }}
@@ -133,7 +133,7 @@ def _page(body: str, script: str = '') -> str:
     .mini-card, .channel-card, .fav-card {{ display:grid; gap:12px; background:#0f1631; border:1px solid #33406f; border-radius:16px; padding:12px; }}
     .mini-card {{ grid-template-columns: 120px 1fr; }}
     .mini-card img {{ width:120px; height:68px; object-fit:cover; border-radius:10px; }}
-    .channel-card img, .fav-card img {{ width:100%; max-height:180px; object-fit:cover; border-radius:12px; border:1px solid #33406f; background:#0b1020; }}
+    .channel-card img {{ width:100%; max-height:180px; object-fit:cover; border-radius:12px; border:1px solid #33406f; background:#0b1020; }}
     .mini-title, .channel-title, .fav-title {{ font-weight:700; margin-bottom:4px; }}
     .mini-meta, .channel-meta, .fav-meta {{ color:#9eb0e4; font-size:14px; margin-bottom:6px; }}
     .mini-summary, .channel-desc, .fav-note {{ color:#cdd7f7; font-size:14px; line-height:1.45; }}
@@ -285,7 +285,7 @@ def discover_page() -> str:
         <p>Nhập niche/chủ đề để tìm các kênh YouTube phù hợp. Hệ thống sẽ tìm video theo chủ đề trước, rồi gom lại thành các kênh liên quan nhất — đỡ bị lệch chỉ vì tên kênh chứa keyword.</p>
         <form method="get" action="/discover">
           <input type="text" name="topic" value="{html.escape(topic)}" placeholder="VD: bóng đá chiến thuật, giáo dục con cái, review sách">
-          <select name="sort_by" style="width:100%; border-radius:14px; border:1px solid #33406f; background:#0f1631; color:#fff; padding:14px; font:inherit;">
+          <select name="sort_by">
             <option value="relevance" {'selected' if sort_by == 'relevance' else ''}>Sắp xếp theo độ liên quan</option>
             <option value="subs" {'selected' if sort_by == 'subs' else ''}>Sắp xếp theo subscriber</option>
           </select>
@@ -314,12 +314,64 @@ def favorites_add() -> Response:
     return redirect(url_for('favorites_page'))
 
 
+@app.post('/favorites/analyze-channel')
+def favorites_analyze_channel() -> str:
+    channel_id = (request.form.get('channel_id') or '').strip()
+    channel_name = (request.form.get('name') or '').strip()
+    limit = int((request.form.get('limit') or '5').strip() or '5')
+    order = (request.form.get('order') or 'date').strip() or 'date'
+    if not channel_id:
+        return _page('<div class="card"><p class="error">Thiếu channel_id để analyze channel.</p></div>')
+
+    try:
+        videos = fetch_channel_videos(channel_id, api_key=SETTINGS.youtube_api_key or '', limit=limit, order=order)
+    except Exception as exc:
+        return _page(f'<div class="card"><p class="error">{html.escape(type(exc).__name__ + ": " + str(exc))}</p></div>')
+
+    results = []
+    for item in videos:
+        try:
+            results.append(run_analyze(SETTINGS, item['url']))
+        except Exception as exc:
+            results.append({
+                'title': item.get('title'),
+                'url': item.get('url'),
+                'error': f'{type(exc).__name__}: {exc}',
+            })
+
+    cards = []
+    for item in results:
+        if item.get('error'):
+            cards.append(f'<div class="result"><div class="error">{html.escape(item.get("title") or item.get("url") or "Unknown")}<br>{html.escape(item["error"])}</div></div>')
+        else:
+            cards.append(f'''
+            <div class="result">
+              <div><strong>{html.escape(item.get('video_id') or 'Unknown')}</strong></div>
+              <div class="actions">
+                <a class="btn secondary" href="/report/{html.escape(Path(item['report']).name)}">Xem report</a>
+                <a class="btn secondary" href="/files/raw/{html.escape(Path(item['analysis']).name)}">Analysis JSON</a>
+              </div>
+            </div>
+            ''')
+
+    body = f'''
+      <div class="card">
+        <div class="topbar">
+          <h1 style="margin:0">Analyze channel: {html.escape(channel_name or channel_id)}</h1>
+          <a class="btn secondary" href="/favorites">← Quay lại Favorites</a>
+        </div>
+        <p>Lấy {len(videos)} video từ channel và chạy analyze hàng loạt.</p>
+        <div class="grid">{''.join(cards)}</div>
+      </div>
+    '''
+    return _page(body)
+
+
 @app.get('/favorites')
 def favorites_page() -> str:
     items = load_favorites(PROJECT_ROOT)
     cards = []
     for item in items:
-        thumb = f"https://i.ytimg.com/vi_webp/{html.escape(item.get('channel_id') or '')}/maxresdefault.webp" if item.get('channel_id') else ''
         cards.append(f'''
         <div class="fav-card">
           <div>
@@ -329,6 +381,20 @@ def favorites_page() -> str:
             <div class="actions">
               <a class="btn secondary" href="{html.escape(item.get('url') or '#')}" target="_blank">Mở kênh</a>
             </div>
+            <form method="post" action="/favorites/analyze-channel">
+              <input type="hidden" name="channel_id" value="{html.escape(item.get('channel_id') or '')}">
+              <input type="hidden" name="name" value="{html.escape(item.get('name') or '')}">
+              <div class="actions">
+                <input type="number" name="limit" value="5" min="1" max="20" style="max-width:120px;">
+                <select name="order" style="max-width:180px;">
+                  <option value="date">Video mới nhất</option>
+                  <option value="viewCount">Nhiều view</option>
+                  <option value="relevance">Relevance</option>
+                  <option value="title">Title</option>
+                </select>
+                <button class="btn success" type="submit">Analyze channel</button>
+              </div>
+            </form>
           </div>
         </div>
         ''')
