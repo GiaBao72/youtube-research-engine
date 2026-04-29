@@ -6,7 +6,8 @@ from pathlib import Path
 import streamlit as st
 
 from .config import Settings
-from .indexing import load_indexed_videos
+from .enrich import cosine_similarity
+from .indexing import load_favorite_channels, load_indexed_videos
 
 
 st.set_page_config(page_title='YouTube Research Dashboard', layout='wide')
@@ -14,38 +15,115 @@ project_root = Path(__file__).resolve().parents[2]
 settings = Settings.load(project_root)
 
 st.title('YouTube Research Dashboard')
-st.caption('Dashboard local bằng Streamlit cho thư viện video đã phân tích.')
+st.caption('Dashboard local cho thư viện video đã phân tích, semantic lookup, và favorite channels.')
 
 rows = load_indexed_videos(settings)
+favorites = load_favorite_channels(settings)
+
 if not rows:
     st.info('Chưa có dữ liệu trong DuckDB. Hãy analyze video hoặc chạy reindex trước.')
     st.stop()
 
-query = st.text_input('Tìm theo title / channel / summary')
-channels = sorted({row.get('channel') for row in rows if row.get('channel')})
-selected_channel = st.selectbox('Lọc theo channel', ['Tất cả'] + channels)
 
-filtered = []
-for row in rows:
-    haystack = ' '.join([
-        str(row.get('title') or ''),
-        str(row.get('channel') or ''),
-        str(row.get('summary') or ''),
-    ]).lower()
-    if query and query.lower() not in haystack:
-        continue
-    if selected_channel != 'Tất cả' and row.get('channel') != selected_channel:
-        continue
-    filtered.append(row)
+def parse_json_field(value: str):
+    try:
+        return json.loads(value or '[]')
+    except Exception:
+        return []
 
-st.write(f'Kết quả: {len(filtered)} video')
-for row in filtered:
-    with st.container(border=True):
-        st.subheader(row.get('title') or row.get('video_id'))
-        st.caption(f"{row.get('channel') or 'N/A'} · {row.get('video_id')}")
-        st.write(row.get('summary') or '')
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write('Keywords:', json.loads(row.get('keywords_json') or '[]'))
-        with c2:
-            st.write('Topic:', row.get('topic_label') or 'N/A')
+
+def similar_rows(target_row: dict, all_rows: list[dict], limit: int = 5):
+    target_vec = parse_json_field(target_row.get('embedding_json'))
+    out = []
+    for row in all_rows:
+        if row.get('video_id') == target_row.get('video_id'):
+            continue
+        score = cosine_similarity(target_vec, parse_json_field(row.get('embedding_json')))
+        if score > 0:
+            out.append((score, row))
+    out.sort(key=lambda x: x[0], reverse=True)
+    return out[:limit]
+
+
+tab1, tab2, tab3 = st.tabs(['Library', 'Video Detail', 'Favorite Channels'])
+
+with tab1:
+    c1, c2, c3 = st.columns([2, 1, 1])
+    query = c1.text_input('Tìm theo title / channel / summary')
+    channels = sorted({row.get('channel') for row in rows if row.get('channel')})
+    selected_channel = c2.selectbox('Lọc theo channel', ['Tất cả'] + channels)
+    mode = c3.selectbox('Mode', ['Tất cả', 'llm', 'fallback'])
+
+    filtered = []
+    for row in rows:
+        haystack = ' '.join([
+            str(row.get('title') or ''),
+            str(row.get('channel') or ''),
+            str(row.get('summary') or ''),
+        ]).lower()
+        if query and query.lower() not in haystack:
+            continue
+        if selected_channel != 'Tất cả' and row.get('channel') != selected_channel:
+            continue
+        if mode != 'Tất cả' and row.get('analysis_mode') != mode:
+            continue
+        filtered.append(row)
+
+    st.write(f'Kết quả: {len(filtered)} video')
+    for row in filtered:
+        with st.container(border=True):
+            st.subheader(row.get('title') or row.get('video_id'))
+            st.caption(f"{row.get('channel') or 'N/A'} · {row.get('video_id')} · mode={row.get('analysis_mode')}")
+            st.write(row.get('summary') or '')
+            a, b, c = st.columns(3)
+            a.write('Keywords:', parse_json_field(row.get('keywords_json')))
+            b.write('Topic:', row.get('topic_label') or 'N/A')
+            c.write('Duration:', row.get('duration') or 'N/A')
+
+with tab2:
+    options = {f"{row.get('title') or row.get('video_id')} [{row.get('video_id')}]": row for row in rows}
+    selected_label = st.selectbox('Chọn video', list(options.keys()))
+    selected = options[selected_label]
+    st.subheader(selected.get('title') or selected.get('video_id'))
+    st.caption(f"{selected.get('channel') or 'N/A'} · {selected.get('video_id')}")
+    st.write(selected.get('summary') or '')
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown('**Title variants**')
+        st.write(parse_json_field(selected.get('title_variants_json')))
+        st.markdown('**Hook variants**')
+        st.write(parse_json_field(selected.get('hook_variants_json')))
+        st.markdown('**Keywords**')
+        st.write(parse_json_field(selected.get('keywords_json')))
+    with col2:
+        st.markdown('**Shorts ideas**')
+        st.write(parse_json_field(selected.get('shorts_ideas_json')))
+        st.markdown('**Next video ideas**')
+        st.write(parse_json_field(selected.get('next_video_ideas_json')))
+        st.markdown('**Structure**')
+        st.write(parse_json_field(selected.get('structure_json')))
+
+    st.markdown('### Similar videos')
+    sims = similar_rows(selected, rows)
+    if sims:
+        for score, row in sims:
+            with st.container(border=True):
+                st.write(f"**{row.get('title') or row.get('video_id')}**")
+                st.caption(f"{row.get('channel') or 'N/A'} · similarity={score:.4f}")
+                st.write(row.get('summary') or '')
+    else:
+        st.info('Chưa có embedding hoặc chưa tìm được video tương tự.')
+
+with tab3:
+    st.write(f'Favorite channels: {len(favorites)}')
+    if not favorites:
+        st.info('Chưa có favorite channels trong DB. Hãy lưu từ web UI rồi chạy reindex nếu cần sync.')
+    for row in favorites:
+        with st.container(border=True):
+            st.subheader(row.get('name') or 'Unknown')
+            st.caption(row.get('topic') or 'N/A')
+            st.write(row.get('note') or '')
+            st.write('Tags:', parse_json_field(row.get('tags_json')))
+            if row.get('url'):
+                st.markdown(f"[Mở kênh]({row.get('url')})")

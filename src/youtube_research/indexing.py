@@ -139,3 +139,10 @@ def load_indexed_videos(settings: Settings) -> list[dict[str, Any]]:
     rows = conn.execute('SELECT * FROM videos ORDER BY indexed_at DESC').fetchdf().to_dict(orient='records')
     conn.close()
     return rows
+
+
+def load_favorite_channels(settings: Settings) -> list[dict[str, Any]]:
+    conn = connect_db(settings)
+    rows = conn.execute('SELECT * FROM favorite_channels ORDER BY added_at DESC').fetchdf().to_dict(orient='records')
+    conn.close()
+    return rows
