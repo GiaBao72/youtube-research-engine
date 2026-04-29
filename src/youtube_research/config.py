@@ -23,8 +23,8 @@ class Settings:
     output_root: Path
     raw_root: Path
     reports_root: Path
-    design_root: Path
     api_key: str | None
+    youtube_api_key: str | None
     base_url: str
     model: str
     language: str
@@ -35,18 +35,16 @@ class Settings:
         output_root = project_root / 'outputs'
         raw_root = output_root / 'raw'
         reports_root = output_root / 'reports'
-        design_root = output_root / 'design_payloads'
         raw_root.mkdir(parents=True, exist_ok=True)
         reports_root.mkdir(parents=True, exist_ok=True)
-        design_root.mkdir(parents=True, exist_ok=True)
         return cls(
             workspace_root=project_root.parent,
             project_root=project_root,
             output_root=output_root,
             raw_root=raw_root,
             reports_root=reports_root,
-            design_root=design_root,
             api_key=os.getenv('OPENAI_API_KEY'),
+            youtube_api_key=os.getenv('YOUTUBE_API_KEY'),
             base_url=os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
             model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
             language=os.getenv('YRE_LANGUAGE', 'vi'),

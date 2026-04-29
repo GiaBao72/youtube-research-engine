@@ -38,10 +38,14 @@ Có sẵn file tiện ích:
 ## Cấu hình
 ```env
 OPENAI_API_KEY=
+YOUTUBE_API_KEY=
 OPENAI_BASE_URL=https://llm.chiasegpu.vn/v1
 OPENAI_MODEL=cx/gpt-5.4
 YRE_LANGUAGE=vi
 ```
+
+- `OPENAI_API_KEY`: dùng cho phân tích video bằng model
+- `YOUTUBE_API_KEY`: dùng cho tìm kênh theo chủ đề bằng YouTube Data API
 
 ## Chạy 1 video
 ```bash
@@ -83,15 +87,24 @@ Mỗi video sẽ tạo ra:
 - `outputs/raw/<video_id>.json`
 - `outputs/raw/<video_id>.analysis.json`
 - `outputs/reports/<video_id>.md`
-- `outputs/design_payloads/<video_id>.design.json`
 
-## Sinh design payload riêng
-Nếu đã có sẵn file phân tích, có thể sinh payload cho lớp thiết kế bằng:
+## Tìm kênh theo chủ đề
 ```bash
-./run.sh design-payload VIDEO_ID
+./run.sh discover-channels "bóng đá chiến thuật" --limit 8
 ```
 
-Payload này là lớp trung gian để sau này nối sang Canva, template autofill, thumbnail generator, carousel generator...
+## Lưu kênh yêu thích
+```bash
+./run.sh save-channel "BLV Anh Quân" "https://www.youtube.com/@blvanhquan" --topic "bóng đá chiến thuật" --tags "football,tactical" --note "Kênh đáng theo dõi để học storytelling trận đấu"
+```
+
+## Xem danh sách yêu thích
+```bash
+./run.sh list-favorites
+```
+
+Danh sách yêu thích được lưu tại:
+- `favorites/channels.json`
 
 ## Ghi chú
 - Ưu tiên transcript YouTube có sẵn.
