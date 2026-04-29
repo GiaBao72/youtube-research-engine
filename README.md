@@ -83,6 +83,15 @@ Mỗi video sẽ tạo ra:
 - `outputs/raw/<video_id>.json`
 - `outputs/raw/<video_id>.analysis.json`
 - `outputs/reports/<video_id>.md`
+- `outputs/design_payloads/<video_id>.design.json`
+
+## Sinh design payload riêng
+Nếu đã có sẵn file phân tích, có thể sinh payload cho lớp thiết kế bằng:
+```bash
+./run.sh design-payload VIDEO_ID
+```
+
+Payload này là lớp trung gian để sau này nối sang Canva, template autofill, thumbnail generator, carousel generator...
 
 ## Ghi chú
 - Ưu tiên transcript YouTube có sẵn.

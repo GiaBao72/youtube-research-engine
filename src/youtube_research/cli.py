@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .analyzer import analyze_video
 from .config import Settings
+from .design_payload import write_design_payload
 from .reporting import write_json, write_markdown_report
 from .youtube import collect_video_data
 
@@ -20,14 +21,37 @@ def run_analyze(settings: Settings, url: str) -> dict[str, str]:
     analysis = analyze_video(settings, video)
     analysis_path = settings.raw_root / f'{video.video_id}.analysis.json'
     report_path = settings.reports_root / f'{video.video_id}.md'
+    design_path = settings.design_root / f'{video.video_id}.design.json'
     write_json(analysis_path, analysis.to_dict())
     write_markdown_report(report_path, video, analysis)
+    write_design_payload(design_path, asdict(video), analysis.to_dict())
 
     return {
         'video_id': video.video_id,
         'raw': str(raw_path),
         'analysis': str(analysis_path),
         'report': str(report_path),
+        'design_payload': str(design_path),
+    }
+
+
+def run_design_payload(settings: Settings, video_id: str) -> dict[str, str]:
+    raw_path = settings.raw_root / f'{video_id}.json'
+    analysis_path = settings.raw_root / f'{video_id}.analysis.json'
+    if not raw_path.exists():
+        raise FileNotFoundError(f'Không thấy raw file cho video_id={video_id}')
+    if not analysis_path.exists():
+        raise FileNotFoundError(f'Không thấy analysis file cho video_id={video_id}')
+
+    raw = json.loads(raw_path.read_text(encoding='utf-8'))
+    analysis = json.loads(analysis_path.read_text(encoding='utf-8'))
+    design_path = settings.design_root / f'{video_id}.design.json'
+    write_design_payload(design_path, raw, analysis)
+    return {
+        'video_id': video_id,
+        'raw': str(raw_path),
+        'analysis': str(analysis_path),
+        'design_payload': str(design_path),
     }
 
 
@@ -57,6 +81,14 @@ def cmd_batch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_design_payload(args: argparse.Namespace) -> int:
+    project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
+    result = run_design_payload(settings, args.video_id)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='youtube-research')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -68,6 +100,10 @@ def build_parser() -> argparse.ArgumentParser:
     batch = sub.add_parser('batch', help='Phân tích nhiều video YouTube')
     batch.add_argument('urls', nargs='+', help='Danh sách YouTube URL hoặc video ID')
     batch.set_defaults(func=cmd_batch)
+
+    design_payload = sub.add_parser('design-payload', help='Sinh design payload từ file phân tích có sẵn')
+    design_payload.add_argument('video_id', help='Video ID đã có raw + analysis JSON')
+    design_payload.set_defaults(func=cmd_design_payload)
     return parser
 
 
