@@ -20,12 +20,20 @@ Tool phân tích video YouTube phục vụ research nội dung. Có CLI và web 
 
 ## Cài đặt
 ```bash
-python3 -m venv ../.venv
-source ../.venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 # sửa .env với API key/model/base URL của bạn
 ```
+
+## Windows
+Nếu bạn chạy trên Windows, xem hướng dẫn riêng tại:
+- `README_WINDOWS.md`
+
+Có sẵn file tiện ích:
+- `start_local.bat`
+- `start_web.bat`
 
 ## Cấu hình
 ```env
