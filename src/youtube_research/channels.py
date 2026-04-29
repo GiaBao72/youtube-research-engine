@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -12,32 +13,42 @@ def discover_channels(topic: str, api_key: str, limit: int = 10) -> list[dict[st
     if not api_key:
         raise RuntimeError('Thiếu YOUTUBE_API_KEY trong .env')
 
-    search_resp = requests.get(
-        'https://www.googleapis.com/youtube/v3/search',
-        params={
-            'part': 'snippet',
-            'q': topic,
-            'type': 'channel',
-            'maxResults': min(limit, 25),
-            'key': api_key,
-        },
-        timeout=30,
-    )
-    search_resp.raise_for_status()
-    data = search_resp.json()
+    videos = _search_videos(topic, api_key=api_key, limit=max(limit * 4, 20))
+    if not videos:
+        return []
 
-    channel_ids = [item['snippet']['channelId'] for item in data.get('items', [])]
-    details = _fetch_channel_details(channel_ids, api_key) if channel_ids else {}
+    grouped: dict[str, dict[str, Any]] = defaultdict(lambda: {
+        'score': 0,
+        'matched_videos': [],
+        'topic': topic,
+    })
+
+    for idx, video in enumerate(videos):
+        channel_id = video.get('channel_id')
+        if not channel_id:
+            continue
+        group = grouped[channel_id]
+        group['score'] += max(1, 30 - idx)
+        group['name'] = video.get('channel_title') or group.get('name')
+        group['channel_id'] = channel_id
+        group['url'] = f'https://www.youtube.com/channel/{channel_id}'
+        group['matched_videos'].append({
+            'title': video.get('title'),
+            'video_id': video.get('video_id'),
+            'published_at': video.get('published_at'),
+        })
+
+    details = _fetch_channel_details(list(grouped.keys()), api_key) if grouped else {}
 
     results = []
-    for item in data.get('items', []):
-        snippet = item.get('snippet', {})
-        channel_id = snippet.get('channelId')
+    for channel_id, group in grouped.items():
         detail = details.get(channel_id, {})
+        snippet = detail.get('snippet', {})
         stats = detail.get('statistics', {})
+        sample_titles = [v['title'] for v in group['matched_videos'][:3] if v.get('title')]
         results.append({
-            'name': snippet.get('channelTitle', ''),
-            'url': f'https://www.youtube.com/channel/{channel_id}',
+            'name': snippet.get('title') or group.get('name') or '',
+            'url': group.get('url'),
             'channel_id': channel_id,
             'topic': topic,
             'description': (snippet.get('description') or '')[:300],
@@ -46,8 +57,49 @@ def discover_channels(topic: str, api_key: str, limit: int = 10) -> list[dict[st
             'subscriber_count': stats.get('subscriberCount'),
             'video_count': stats.get('videoCount'),
             'view_count': stats.get('viewCount'),
+            'relevance_score': group['score'],
+            'matched_video_count': len(group['matched_videos']),
+            'sample_video_titles': sample_titles,
         })
-    return results
+
+    results.sort(
+        key=lambda x: (
+            x.get('relevance_score') or 0,
+            x.get('matched_video_count') or 0,
+            int(x.get('subscriber_count') or 0),
+        ),
+        reverse=True,
+    )
+    return results[:limit]
+
+
+def _search_videos(topic: str, api_key: str, limit: int = 25) -> list[dict[str, Any]]:
+    resp = requests.get(
+        'https://www.googleapis.com/youtube/v3/search',
+        params={
+            'part': 'snippet',
+            'q': topic,
+            'type': 'video',
+            'order': 'relevance',
+            'maxResults': min(limit, 50),
+            'key': api_key,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    out = []
+    for item in data.get('items', []):
+        snippet = item.get('snippet', {})
+        out.append({
+            'video_id': (item.get('id') or {}).get('videoId'),
+            'title': snippet.get('title'),
+            'channel_id': snippet.get('channelId'),
+            'channel_title': snippet.get('channelTitle'),
+            'description': snippet.get('description'),
+            'published_at': snippet.get('publishedAt'),
+        })
+    return out
 
 
 def _fetch_channel_details(channel_ids: list[str], api_key: str) -> dict[str, dict[str, Any]]:

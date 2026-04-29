@@ -254,7 +254,9 @@ def discover_page() -> str:
           <div>
             <div class="channel-title">{html.escape(ch.get('name') or 'Unknown')}</div>
             <div class="channel-meta">Subscribers: {html.escape(str(ch.get('subscriber_count') or 'N/A'))} · Videos: {html.escape(str(ch.get('video_count') or 'N/A'))}</div>
+            <div class="channel-meta">Relevance score: {html.escape(str(ch.get('relevance_score') or 0))} · Matched videos: {html.escape(str(ch.get('matched_video_count') or 0))}</div>
             <div class="channel-desc">{html.escape(ch.get('description') or '')}</div>
+            <div class="summary">Ví dụ video khớp chủ đề: {html.escape(' | '.join(ch.get('sample_video_titles') or []))}</div>
             <div class="actions">
               <a class="btn secondary" href="{html.escape(ch.get('url') or '#')}" target="_blank">Mở kênh</a>
               <form method="post" action="/favorites/add">
@@ -279,7 +281,7 @@ def discover_page() -> str:
     body = f'''
       <div class="card">
         <h1>Khám phá kênh theo chủ đề</h1>
-        <p>Nhập niche/chủ đề để tìm các kênh YouTube phù hợp. Dùng YouTube Data API nên kết quả ổn định hơn scrape.</p>
+        <p>Nhập niche/chủ đề để tìm các kênh YouTube phù hợp. Hệ thống sẽ tìm video theo chủ đề trước, rồi gom lại thành các kênh liên quan nhất — đỡ bị lệch chỉ vì tên kênh chứa keyword.</p>
         <form method="get" action="/discover">
           <input type="text" name="topic" value="{html.escape(topic)}" placeholder="VD: bóng đá chiến thuật, giáo dục con cái, review sách">
           <div class="actions">

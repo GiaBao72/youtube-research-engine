@@ -93,6 +93,13 @@ Mỗi video sẽ tạo ra:
 ./run.sh discover-channels "bóng đá chiến thuật" --limit 8
 ```
 
+Logic hiện tại:
+- tìm **video** theo chủ đề trước
+- gom các **channel** xuất hiện trong kết quả video
+- chấm điểm theo mức độ liên quan + độ phủ kết quả
+
+Cách này cho kết quả tốt hơn việc chỉ search theo tên kênh.
+
 ## Lưu kênh yêu thích
 ```bash
 ./run.sh save-channel "BLV Anh Quân" "https://www.youtube.com/@blvanhquan" --topic "bóng đá chiến thuật" --tags "football,tactical" --note "Kênh đáng theo dõi để học storytelling trận đấu"
