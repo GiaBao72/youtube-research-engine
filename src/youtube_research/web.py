@@ -4,8 +4,9 @@ import html
 import json
 from pathlib import Path
 
-from flask import Flask, Response, request, send_file
+from flask import Flask, Response, redirect, request, send_file, url_for
 
+from .channels import add_favorite_channel, discover_channels, load_favorites
 from .cli import run_analyze
 from .config import Settings
 
@@ -81,6 +82,16 @@ def _recent_html() -> str:
     return '<div class="card"><h2>Gần đây</h2><div class="recent-grid">' + ''.join(cards) + '</div></div>'
 
 
+def _nav() -> str:
+    return '''
+    <div class="nav card">
+      <a class="nav-link" href="/">Analyze</a>
+      <a class="nav-link" href="/discover">Khám phá kênh</a>
+      <a class="nav-link" href="/favorites">Yêu thích</a>
+    </div>
+    '''
+
+
 def _page(body: str, script: str = '') -> str:
     return f'''<!doctype html>
 <html lang="vi">
@@ -92,17 +103,20 @@ def _page(body: str, script: str = '') -> str:
     :root {{ color-scheme: dark; }}
     * {{ box-sizing: border-box; }}
     body {{ font-family: Inter, system-ui, sans-serif; margin: 0; background: linear-gradient(180deg,#0b1020 0%,#0f172a 100%); color: #e5e7eb; }}
-    .wrap {{ max-width: 1120px; margin: 0 auto; padding: 32px 20px 72px; }}
-    .hero {{ margin-bottom: 20px; }}
+    .wrap {{ max-width: 1160px; margin: 0 auto; padding: 24px 20px 72px; }}
     .card {{ background: rgba(18,25,55,.92); border: 1px solid #253056; border-radius: 20px; padding: 22px; box-shadow: 0 12px 40px rgba(0,0,0,.28); margin-bottom: 18px; }}
+    .nav {{ display:flex; gap:10px; padding:14px 18px; position:sticky; top:10px; z-index:10; backdrop-filter: blur(8px); }}
+    .nav-link {{ display:inline-block; padding:10px 14px; border-radius:12px; background:#121a38; color:#dbe4ff; text-decoration:none; border:1px solid #27325b; }}
     h1 {{ margin: 0 0 8px; font-size: 34px; }}
     h2 {{ margin: 0 0 14px; font-size: 22px; }}
     h3 {{ margin: 0 0 10px; font-size: 22px; }}
     p {{ color: #aab3cf; line-height: 1.6; }}
     form {{ display: grid; gap: 12px; margin-top: 16px; }}
-    textarea {{ width: 100%; min-height: 128px; border-radius: 14px; border: 1px solid #33406f; background: #0f1631; color: #fff; padding: 14px; font: inherit; resize: vertical; }}
+    textarea, input {{ width: 100%; border-radius: 14px; border: 1px solid #33406f; background: #0f1631; color: #fff; padding: 14px; font: inherit; }}
+    textarea {{ min-height: 128px; resize: vertical; }}
     button, .btn {{ border: 0; border-radius: 12px; background: #4f46e5; color: white; padding: 12px 18px; font-weight: 600; cursor: pointer; width: fit-content; text-decoration:none; display:inline-block; }}
     .btn.secondary {{ background: #1f2a4d; color: #c7d2fe; }}
+    .btn.success {{ background: #0f8a5f; color: #eafff8; }}
     .grid {{ display: grid; gap: 18px; margin-top: 20px; }}
     .result {{ background: #0f1631; border: 1px solid #33406f; border-radius: 16px; padding: 16px; }}
     .result-grid {{ display:grid; grid-template-columns: 280px 1fr; gap: 18px; }}
@@ -110,17 +124,19 @@ def _page(body: str, script: str = '') -> str:
     .meta {{ display: grid; grid-template-columns: 150px 1fr; gap: 8px 12px; margin: 12px 0 14px; }}
     .label {{ color: #8ea0d9; }}
     .error {{ color: #fca5a5; white-space: pre-wrap; }}
+    .ok {{ color:#9ef0c8; }}
     a {{ color: #93c5fd; text-decoration: none; }}
-    code {{ background: #0b1020; padding: 2px 6px; border-radius: 6px; }}
     .summary {{ background:#0b1020; border:1px solid #243052; border-radius:12px; padding:14px; color:#dbe4ff; line-height:1.6; }}
-    .actions {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }}
+    .actions {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center; }}
     .tag {{ display:inline-block; padding:6px 10px; border-radius:999px; background:#18213f; color:#b8c4f7; font-size:13px; margin:0 8px 8px 0; }}
-    .recent-grid {{ display:grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap:14px; }}
-    .mini-card {{ display:grid; grid-template-columns: 120px 1fr; gap:12px; background:#0f1631; border:1px solid #33406f; border-radius:16px; padding:12px; }}
+    .recent-grid, .channel-grid, .fav-grid {{ display:grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap:14px; }}
+    .mini-card, .channel-card, .fav-card {{ display:grid; gap:12px; background:#0f1631; border:1px solid #33406f; border-radius:16px; padding:12px; }}
+    .mini-card {{ grid-template-columns: 120px 1fr; }}
     .mini-card img {{ width:120px; height:68px; object-fit:cover; border-radius:10px; }}
-    .mini-title {{ font-weight:700; margin-bottom:4px; }}
-    .mini-meta {{ color:#9eb0e4; font-size:14px; margin-bottom:6px; }}
-    .mini-summary {{ color:#cdd7f7; font-size:14px; line-height:1.45; }}
+    .channel-card img, .fav-card img {{ width:100%; max-height:180px; object-fit:cover; border-radius:12px; border:1px solid #33406f; background:#0b1020; }}
+    .mini-title, .channel-title, .fav-title {{ font-weight:700; margin-bottom:4px; }}
+    .mini-meta, .channel-meta, .fav-meta {{ color:#9eb0e4; font-size:14px; margin-bottom:6px; }}
+    .mini-summary, .channel-desc, .fav-note {{ color:#cdd7f7; font-size:14px; line-height:1.45; }}
     .mini-links {{ display:flex; gap:12px; margin-top:8px; font-size:14px; }}
     .topbar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }}
     .report {{ background:#0b1020; border:1px solid #243052; border-radius:14px; padding:18px; white-space:pre-wrap; line-height:1.65; color:#dbe4ff; overflow:auto; }}
@@ -129,7 +145,7 @@ def _page(body: str, script: str = '') -> str:
   </style>
 </head>
 <body>
-  <div class="wrap">{body}</div>
+  <div class="wrap">{_nav()}{body}</div>
   {script}
 </body>
 </html>'''
@@ -138,7 +154,7 @@ def _page(body: str, script: str = '') -> str:
 @app.get('/')
 def index() -> str:
     body = f'''
-      <div class="card hero">
+      <div class="card">
         <h1>YouTube Research</h1>
         <p>Nhập 1 hoặc nhiều URL YouTube, mỗi dòng 1 URL. Tool sẽ lấy transcript, phân tích bằng LLM và sinh report Markdown + JSON.</p>
         <form method="post" action="/analyze" id="analyze-form">
@@ -171,10 +187,9 @@ def analyze() -> str:
     raw_urls = request.form.get('urls', '')
     urls = [line.strip() for line in raw_urls.splitlines() if line.strip()]
     if not urls:
-        return _page('''<div class="card"><h1>YouTube Research</h1><p class="error">Bạn chưa nhập URL nào.</p><p><a href="/">← Quay lại</a></p></div>''')
+        return _page('<div class="card"><h1>YouTube Research</h1><p class="error">Bạn chưa nhập URL nào.</p></div>')
 
     blocks: list[str] = ['<div class="card"><div class="topbar"><h1 style="margin:0">Kết quả phân tích</h1><a class="btn secondary" href="/">← Phân tích tiếp</a></div><div class="grid">']
-
     for url in urls:
         try:
             result = run_analyze(SETTINGS, url)
@@ -189,9 +204,7 @@ def analyze() -> str:
             blocks.append(f'''
               <div class="result">
                 <div class="result-grid">
-                  <div>
-                    <img class="thumb" src="{html.escape(thumb)}" alt="thumbnail">
-                  </div>
+                  <div><img class="thumb" src="{html.escape(thumb)}" alt="thumbnail"></div>
                   <div>
                     <h3>{html.escape(raw.get('title') or result['video_id'])}</h3>
                     <div>
@@ -216,10 +229,109 @@ def analyze() -> str:
               </div>
             ''')
         except Exception as exc:
-            blocks.append(f'''<div class="result"><h3>Lỗi</h3><div class="error"><strong>{html.escape(url)}</strong>\n{html.escape(type(exc).__name__ + ': ' + str(exc))}</div></div>''')
-
+            blocks.append(f'<div class="result"><h3>Lỗi</h3><div class="error"><strong>{html.escape(url)}</strong><br>{html.escape(type(exc).__name__ + ": " + str(exc))}</div></div>')
     blocks.append('</div></div>')
     return _page(''.join(blocks))
+
+
+@app.get('/discover')
+def discover_page() -> str:
+    topic = (request.args.get('topic') or '').strip()
+    channels = []
+    error = ''
+    if topic:
+        try:
+            channels = discover_channels(topic, api_key=SETTINGS.youtube_api_key or '', limit=8)
+        except Exception as exc:
+            error = f'{type(exc).__name__}: {exc}'
+
+    cards = []
+    for ch in channels:
+        thumb = ch.get('thumbnail') or ''
+        cards.append(f'''
+        <div class="channel-card">
+          <img src="{html.escape(thumb)}" alt="thumb">
+          <div>
+            <div class="channel-title">{html.escape(ch.get('name') or 'Unknown')}</div>
+            <div class="channel-meta">Subscribers: {html.escape(str(ch.get('subscriber_count') or 'N/A'))} · Videos: {html.escape(str(ch.get('video_count') or 'N/A'))}</div>
+            <div class="channel-desc">{html.escape(ch.get('description') or '')}</div>
+            <div class="actions">
+              <a class="btn secondary" href="{html.escape(ch.get('url') or '#')}" target="_blank">Mở kênh</a>
+              <form method="post" action="/favorites/add">
+                <input type="hidden" name="name" value="{html.escape(ch.get('name') or '')}">
+                <input type="hidden" name="url" value="{html.escape(ch.get('url') or '')}">
+                <input type="hidden" name="channel_id" value="{html.escape(ch.get('channel_id') or '')}">
+                <input type="hidden" name="topic" value="{html.escape(ch.get('topic') or '')}">
+                <input type="hidden" name="note" value="Phát hiện từ Discover Channels">
+                <button class="btn success" type="submit">Lưu yêu thích</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        ''')
+
+    result_html = ''
+    if error:
+        result_html = f'<div class="card"><p class="error">{html.escape(error)}</p></div>'
+    elif topic:
+        result_html = '<div class="card"><h2>Kết quả</h2><div class="channel-grid">' + ''.join(cards or ['<p class="hint">Không tìm thấy kênh phù hợp.</p>']) + '</div></div>'
+
+    body = f'''
+      <div class="card">
+        <h1>Khám phá kênh theo chủ đề</h1>
+        <p>Nhập niche/chủ đề để tìm các kênh YouTube phù hợp. Dùng YouTube Data API nên kết quả ổn định hơn scrape.</p>
+        <form method="get" action="/discover">
+          <input type="text" name="topic" value="{html.escape(topic)}" placeholder="VD: bóng đá chiến thuật, giáo dục con cái, review sách">
+          <div class="actions">
+            <button type="submit">Tìm kênh</button>
+            <a class="btn secondary" href="/favorites">Xem yêu thích</a>
+          </div>
+        </form>
+      </div>
+      {result_html}
+    '''
+    return _page(body)
+
+
+@app.post('/favorites/add')
+def favorites_add() -> Response:
+    add_favorite_channel(
+        project_root=PROJECT_ROOT,
+        name=request.form.get('name', ''),
+        url=request.form.get('url', ''),
+        channel_id=request.form.get('channel_id', ''),
+        topic=request.form.get('topic', ''),
+        note=request.form.get('note', ''),
+        tags=[],
+    )
+    return redirect(url_for('favorites_page'))
+
+
+@app.get('/favorites')
+def favorites_page() -> str:
+    items = load_favorites(PROJECT_ROOT)
+    cards = []
+    for item in items:
+        thumb = f"https://i.ytimg.com/vi_webp/{html.escape(item.get('channel_id') or '')}/maxresdefault.webp" if item.get('channel_id') else ''
+        cards.append(f'''
+        <div class="fav-card">
+          <div>
+            <div class="fav-title">{html.escape(item.get('name') or 'Unknown')}</div>
+            <div class="fav-meta">{html.escape(item.get('topic') or 'N/A')}</div>
+            <div class="fav-note">{html.escape(item.get('note') or '')}</div>
+            <div class="actions">
+              <a class="btn secondary" href="{html.escape(item.get('url') or '#')}" target="_blank">Mở kênh</a>
+            </div>
+          </div>
+        </div>
+        ''')
+    body = '<div class="card"><h1>Kênh yêu thích</h1><p>Lưu local tại <code>favorites/channels.json</code>.</p>'
+    if items:
+        body += '<div class="fav-grid">' + ''.join(cards) + '</div>'
+    else:
+        body += '<p class="hint">Chưa có kênh nào được lưu.</p>'
+    body += '</div>'
+    return _page(body)
 
 
 @app.get('/report/<path:name>')
