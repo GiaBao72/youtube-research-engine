@@ -112,6 +112,40 @@ def _search_videos(topic: str, api_key: str, limit: int = 25) -> list[dict[str, 
     return out
 
 
+def fetch_channel_videos(channel_id: str, api_key: str, limit: int = 5, order: str = 'date') -> list[dict[str, Any]]:
+    if not api_key:
+        raise RuntimeError('Thiếu YOUTUBE_API_KEY trong .env')
+    resp = requests.get(
+        'https://www.googleapis.com/youtube/v3/search',
+        params={
+            'part': 'snippet',
+            'channelId': channel_id,
+            'type': 'video',
+            'order': order,
+            'maxResults': min(limit, 50),
+            'key': api_key,
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    videos = []
+    for item in data.get('items', []):
+        snippet = item.get('snippet', {})
+        video_id = (item.get('id') or {}).get('videoId')
+        if not video_id:
+            continue
+        videos.append({
+            'video_id': video_id,
+            'title': snippet.get('title'),
+            'url': f'https://www.youtube.com/watch?v={video_id}',
+            'published_at': snippet.get('publishedAt'),
+            'channel_id': snippet.get('channelId'),
+            'channel_title': snippet.get('channelTitle'),
+        })
+    return videos
+
+
 def _fetch_channel_details(channel_ids: list[str], api_key: str) -> dict[str, dict[str, Any]]:
     resp = requests.get(
         'https://www.googleapis.com/youtube/v3/channels',

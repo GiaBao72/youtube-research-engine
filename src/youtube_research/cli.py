@@ -6,7 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .analyzer import analyze_video
-from .channels import add_favorite_channel, discover_channels, load_favorites
+from .channels import add_favorite_channel, discover_channels, fetch_channel_videos, load_favorites
 from .config import Settings
 from .enrich import build_enrichment, cosine_similarity, infer_topics
 from .indexing import index_video, load_indexed_videos, sync_favorites_to_db
@@ -156,6 +156,28 @@ def cmd_keywords(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_analyze_channel(args: argparse.Namespace) -> int:
+    project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
+    videos = fetch_channel_videos(args.channel_id, api_key=settings.youtube_api_key or '', limit=args.limit, order=args.order)
+    results = []
+    for item in videos:
+        try:
+            results.append(run_analyze(settings, item['url']))
+        except Exception as exc:
+            results.append({
+                'url': item.get('url'),
+                'title': item.get('title'),
+                'error': f'{type(exc).__name__}: {exc}',
+            })
+    print(json.dumps({
+        'channel_id': args.channel_id,
+        'requested': len(videos),
+        'results': results,
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='youtube-research')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -197,6 +219,12 @@ def build_parser() -> argparse.ArgumentParser:
     keywords = sub.add_parser('keywords', help='Xem keywords đã extract của 1 video')
     keywords.add_argument('video_id', help='Video ID')
     keywords.set_defaults(func=cmd_keywords)
+
+    analyze_channel = sub.add_parser('analyze-channel', help='Phân tích nhiều video từ một channel')
+    analyze_channel.add_argument('channel_id', help='YouTube channel ID')
+    analyze_channel.add_argument('--limit', type=int, default=5, help='Số video cần lấy')
+    analyze_channel.add_argument('--order', choices=['date', 'viewCount', 'rating', 'relevance', 'title', 'videoCount'], default='date', help='Cách lấy video từ channel')
+    analyze_channel.set_defaults(func=cmd_analyze_channel)
     return parser
 
 

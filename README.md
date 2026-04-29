@@ -109,6 +109,15 @@ Logic hiện tại:
 ./run.sh keywords VIDEO_ID
 ```
 
+## Analyze cả 1 channel
+```bash
+./run.sh analyze-channel CHANNEL_ID --limit 5 --order date
+```
+
+Ví dụ:
+- lấy 5 video mới nhất của channel rồi analyze hàng loạt
+- mỗi video vẫn sinh raw JSON, analysis JSON, report Markdown, và index vào DuckDB
+
 ## Flask web UI
 ```bash
 ./run-web.sh
