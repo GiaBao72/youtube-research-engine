@@ -143,11 +143,43 @@ def _recent_html() -> str:
 def _nav() -> str:
     return '''
     <div class="nav card">
-      <a class="nav-link" href="/">Analyze</a>
+      <a class="nav-link" href="/">Home</a>
+      <a class="nav-link" href="/analyze">Analyze</a>
       <a class="nav-link" href="/discover">Khám phá kênh</a>
       <a class="nav-link" href="/favorites">Yêu thích</a>
     </div>
     '''
+
+
+def _analyze_form(initial_urls: str = '') -> str:
+    return f'''
+      <div class="card">
+        <h1>YouTube Research</h1>
+        <p>Nhập 1 hoặc nhiều URL YouTube, mỗi dòng 1 URL. Tool sẽ lấy transcript, phân tích bằng LLM và sinh report Markdown + JSON.</p>
+        <form method="post" action="/analyze" id="analyze-form">
+          <textarea name="urls" placeholder="https://www.youtube.com/watch?v=iG9CE55wbtY\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ">{html.escape(initial_urls)}</textarea>
+          <div class="actions">
+            <button type="submit" id="submit-btn">Phân tích ngay</button>
+            <span class="hint" id="loading-text"></span>
+          </div>
+        </form>
+      </div>
+    '''
+
+
+def _analyze_form_script() -> str:
+    return '''<script>
+      const form = document.getElementById('analyze-form');
+      const btn = document.getElementById('submit-btn');
+      const txt = document.getElementById('loading-text');
+      if (form) {
+        form.addEventListener('submit', () => {
+          btn.disabled = true;
+          btn.textContent = 'Đang phân tích...';
+          txt.textContent = 'Chờ chút, mình đang lấy transcript + gọi model.';
+        });
+      }
+    </script>'''
 
 
 def _page(body: str, script: str = '') -> str:
@@ -216,33 +248,8 @@ def _page(body: str, script: str = '') -> str:
 
 @app.get('/')
 def index() -> str:
-    body = f'''
-      <div class="card">
-        <h1>YouTube Research</h1>
-        <p>Nhập 1 hoặc nhiều URL YouTube, mỗi dòng 1 URL. Tool sẽ lấy transcript, phân tích bằng LLM và sinh report Markdown + JSON.</p>
-        <form method="post" action="/analyze" id="analyze-form">
-          <textarea name="urls" placeholder="https://www.youtube.com/watch?v=iG9CE55wbtY\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ"></textarea>
-          <div class="actions">
-            <button type="submit" id="submit-btn">Phân tích ngay</button>
-            <span class="hint" id="loading-text"></span>
-          </div>
-        </form>
-      </div>
-      {_recent_html()}
-    '''
-    script = '''<script>
-      const form = document.getElementById('analyze-form');
-      const btn = document.getElementById('submit-btn');
-      const txt = document.getElementById('loading-text');
-      if (form) {
-        form.addEventListener('submit', () => {
-          btn.disabled = true;
-          btn.textContent = 'Đang phân tích...';
-          txt.textContent = 'Chờ chút, mình đang lấy transcript + gọi model.';
-        });
-      }
-    </script>'''
-    return _page(body, script)
+    body = _analyze_form() + _recent_html()
+    return _page(body, _analyze_form_script())
 
 
 @app.route('/analyze', methods=['GET', 'POST'])
@@ -252,9 +259,12 @@ def analyze() -> str:
         raw_urls = request.values.get('url', '')
     urls = [line.strip() for line in raw_urls.splitlines() if line.strip()]
     if not urls:
-        return _page('<div class="card"><h1>YouTube Research</h1><p class="error">Bạn chưa nhập URL nào.</p></div>')
+        return _page(_analyze_form(raw_urls), _analyze_form_script())
 
-    blocks: list[str] = ['<div class="card"><div class="topbar"><h1 style="margin:0">Kết quả phân tích</h1><a class="btn secondary" href="/">← Phân tích tiếp</a></div><div class="grid">']
+    blocks: list[str] = [
+        _analyze_form(raw_urls),
+        '<div class="card"><div class="topbar"><h1 style="margin:0">Kết quả phân tích</h1><a class="btn secondary" href="/analyze">← Phân tích tiếp</a></div><div class="grid">',
+    ]
     for url in urls:
         try:
             result = run_analyze(SETTINGS, url)
