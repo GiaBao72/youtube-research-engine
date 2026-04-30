@@ -37,6 +37,56 @@ def _link_if_exists(path: Path, href: str, label: str, button_class: str = 'btn 
     return f'<a class="{button_class}" href="{html.escape(href)}">{html.escape(label)}</a>'
 
 
+def _existing_artifact_links(paths: list[tuple[Path, str, str, str]]) -> list[str]:
+    links = []
+    for path, href, label, button_class in paths:
+        link = _link_if_exists(path, href, label, button_class)
+        if link:
+            links.append(link)
+    return links
+
+
+def _result_artifact_groups(result: dict[str, str], raw: dict, report_path: Path, analysis_path: Path, raw_path: Path) -> tuple[list[str], list[str]]:
+    video_id = result.get('video_id') or raw.get('video_id') or ''
+    production_path = Path(result.get('production_package') or '')
+    production_title_path = Path(result.get('production_title') or '')
+    production_hook_path = Path(result.get('production_hook') or '')
+    production_script_path = Path(result.get('production_script') or '')
+    pipeline_dir = Path(result.get('pipeline_bundle_dir') or '')
+
+    primary_links = _existing_artifact_links([
+        (report_path, f'/report/{report_path.name}', 'Xem report trong web', 'btn'),
+        (report_path, f'/files/reports/{report_path.name}', 'Markdown', 'btn secondary'),
+        (production_path, f'/files/production/{production_path.name}', 'Production JSON', 'btn secondary'),
+        (production_title_path, f'/files/production/{production_title_path.name}', 'Title TXT', 'btn secondary'),
+        (production_hook_path, f'/files/production/{production_hook_path.name}', 'Hook TXT', 'btn secondary'),
+        (production_script_path, f'/files/production/{production_script_path.name}', 'Script TXT', 'btn secondary'),
+    ])
+
+    secondary_links = _existing_artifact_links([
+        (analysis_path, f'/files/raw/{analysis_path.name}', 'Analysis JSON', 'btn secondary'),
+        (raw_path, f'/files/raw/{raw_path.name}', 'Raw JSON', 'btn secondary'),
+    ])
+    if pipeline_dir.exists() and video_id:
+        secondary_links.extend(_existing_artifact_links([
+            (pipeline_dir / 'README.txt', f'/files/pipeline/{video_id}/README.txt', 'Pipeline README', 'btn secondary'),
+            (pipeline_dir / 'commands.json', f'/files/pipeline/{video_id}/commands.json', 'Commands JSON', 'btn secondary'),
+            (pipeline_dir / 'moneyprinter.input.json', f'/files/pipeline/{video_id}/moneyprinter.input.json', 'MoneyPrinter Input', 'btn secondary'),
+            (pipeline_dir / 'subtitle.input.json', f'/files/pipeline/{video_id}/subtitle.input.json', 'Subtitle Input', 'btn secondary'),
+            (pipeline_dir / 'finalize.input.json', f'/files/pipeline/{video_id}/finalize.input.json', 'Finalize Input', 'btn secondary'),
+            (pipeline_dir / 'run_moneyprinter.sh', f'/files/pipeline/{video_id}/run_moneyprinter.sh', 'Run MoneyPrinter (.sh)', 'btn secondary'),
+            (pipeline_dir / 'run_subtitle.sh', f'/files/pipeline/{video_id}/run_subtitle.sh', 'Run Subtitle (.sh)', 'btn secondary'),
+            (pipeline_dir / 'run_finalize.sh', f'/files/pipeline/{video_id}/run_finalize.sh', 'Run Finalize (.sh)', 'btn secondary'),
+            (pipeline_dir / 'run_all.sh', f'/files/pipeline/{video_id}/run_all.sh', 'Run All (.sh)', 'btn secondary'),
+            (pipeline_dir / 'run_moneyprinter.bat', f'/files/pipeline/{video_id}/run_moneyprinter.bat', 'Run MoneyPrinter (.bat)', 'btn secondary'),
+            (pipeline_dir / 'run_subtitle.bat', f'/files/pipeline/{video_id}/run_subtitle.bat', 'Run Subtitle (.bat)', 'btn secondary'),
+            (pipeline_dir / 'run_finalize.bat', f'/files/pipeline/{video_id}/run_finalize.bat', 'Run Finalize (.bat)', 'btn secondary'),
+            (pipeline_dir / 'run_all.bat', f'/files/pipeline/{video_id}/run_all.bat', 'Run All (.bat)', 'btn secondary'),
+        ]))
+
+    return primary_links, secondary_links
+
+
 def _recent_items(limit: int = 8) -> list[dict]:
     items = []
     for raw_path in sorted(SETTINGS.raw_root.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -148,6 +198,11 @@ def _page(body: str, script: str = '') -> str:
     .mini-links {{ display:flex; gap:12px; margin-top:8px; font-size:14px; }}
     .topbar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }}
     .report {{ background:#0b1020; border:1px solid #243052; border-radius:14px; padding:18px; white-space:pre-wrap; line-height:1.65; color:#dbe4ff; overflow:auto; }}
+    .artifact-panel {{ margin-top:16px; border-top:1px solid #243052; padding-top:14px; }}
+    .artifact-toggle {{ display:inline-flex; align-items:center; gap:8px; color:#c7d2fe; font-size:14px; cursor:pointer; }}
+    .artifact-toggle::marker {{ color:#93c5fd; }}
+    .artifact-panel[open] .artifact-toggle {{ color:#e5e7eb; }}
+    .artifact-grid {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }}
     .hint {{ font-size:14px; color:#8ea0d9; }}
     @media (max-width: 800px) {{ .result-grid {{ grid-template-columns: 1fr; }} .meta {{ grid-template-columns: 110px 1fr; }} }}
   </style>
@@ -206,43 +261,20 @@ def analyze() -> str:
             raw_path = Path(result['raw'])
             analysis_path = Path(result['analysis'])
             report_path = Path(result['report'])
-            production_path = Path(result.get('production_package') or '')
-            production_title_path = Path(result.get('production_title') or '')
-            production_hook_path = Path(result.get('production_hook') or '')
-            production_script_path = Path(result.get('production_script') or '')
-            pipeline_dir = Path(result.get('pipeline_bundle_dir') or '')
             raw = _read_json(raw_path)
             analysis = _read_json(analysis_path)
             thumb = f'https://i.ytimg.com/vi/{raw.get("video_id")}/hqdefault.jpg'
             mode = analysis.get('analysis_mode', 'llm').upper()
             summary = analysis.get('summary', '')
-            production_links = ''.join([
-                _link_if_exists(production_path, f'/files/production/{production_path.name}', 'Production JSON'),
-                _link_if_exists(production_title_path, f'/files/production/{production_title_path.name}', 'Title TXT'),
-                _link_if_exists(production_hook_path, f'/files/production/{production_hook_path.name}', 'Hook TXT'),
-                _link_if_exists(production_script_path, f'/files/production/{production_script_path.name}', 'Script TXT'),
-            ])
-            pipeline_links = []
-            pipeline_video_id = result.get('video_id') or raw.get('video_id') or ''
-            if pipeline_dir.exists() and pipeline_video_id:
-                for filename, label in [
-                    ('README.txt', 'Pipeline README'),
-                    ('commands.json', 'Commands JSON'),
-                    ('moneyprinter.input.json', 'MoneyPrinter Input'),
-                    ('subtitle.input.json', 'Subtitle Input'),
-                    ('finalize.input.json', 'Finalize Input'),
-                    ('run_moneyprinter.sh', 'Run MoneyPrinter (.sh)'),
-                    ('run_subtitle.sh', 'Run Subtitle (.sh)'),
-                    ('run_finalize.sh', 'Run Finalize (.sh)'),
-                    ('run_all.sh', 'Run All (.sh)'),
-                    ('run_moneyprinter.bat', 'Run MoneyPrinter (.bat)'),
-                    ('run_subtitle.bat', 'Run Subtitle (.bat)'),
-                    ('run_finalize.bat', 'Run Finalize (.bat)'),
-                    ('run_all.bat', 'Run All (.bat)'),
-                ]:
-                    pipeline_links.append(
-                        _link_if_exists(pipeline_dir / filename, f'/files/pipeline/{pipeline_video_id}/{filename}', label)
-                    )
+            primary_links, secondary_links = _result_artifact_groups(result, raw, report_path, analysis_path, raw_path)
+            more_artifacts_html = ''
+            if secondary_links:
+                more_artifacts_html = (
+                    '<details class="artifact-panel">'
+                    '<summary class="artifact-toggle">More artifacts</summary>'
+                    f'<div class="artifact-grid">{"".join(secondary_links)}</div>'
+                    '</details>'
+                )
             blocks.append(f'''
               <div class="result">
                 <div class="result-grid">
@@ -260,16 +292,8 @@ def analyze() -> str:
                       <div class="label">URL</div><div><a href="{html.escape(url)}" target="_blank">{html.escape(url)}</a></div>
                     </div>
                     <div class="summary">{html.escape(summary)}</div>
-                    <div class="actions">
-                      <a class="btn" href="/report/{html.escape(report_path.name)}">Xem report trong web</a>
-                      <a class="btn secondary" href="/files/reports/{html.escape(report_path.name)}">Markdown</a>
-                      <a class="btn secondary" href="/files/raw/{html.escape(analysis_path.name)}">Analysis JSON</a>
-                      <a class="btn secondary" href="/files/raw/{html.escape(raw_path.name)}">Raw JSON</a>
-                    </div>
-                    <div class="meta" style="margin-top:16px;">
-                      <div class="label">Production</div><div>{production_links or '<span class="hint">Chưa có production output.</span>'}</div>
-                      <div class="label">Pipeline</div><div>{''.join(pipeline_links) or '<span class="hint">Chưa có pipeline bundle.</span>'}</div>
-                    </div>
+                    <div class="actions">{''.join(primary_links) or '<span class="hint">Chưa có artifact chính.</span>'}</div>
+                    {more_artifacts_html}
                   </div>
                 </div>
               </div>
