@@ -122,52 +122,69 @@ def _analyzed_videos_table() -> str:
     items = _recent_items()
     if not items:
         return (
-            '<section class="card section-card">'
-            '<div class="section-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
+            '<section class="card section-card library-card">'
+            '<div class="section-head library-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
             '<p>Danh sách video đã phân tích sẽ hiện ở đây để bạn sửa nhanh hoặc xóa khỏi workspace.</p></div>'
             '<p class="hint">Chưa có video nào được phân tích.</p></section>'
         )
 
     rows = []
     for item in items:
+        summary = html.escape(item['summary'][:140]) + ('…' if len(item['summary']) > 140 else '')
+        note = html.escape(item['note']) if item['note'] else 'Chưa có ghi chú riêng.'
         rows.append(f'''
         <tr>
           <td>
-            <div class="recent-video">
+            <div class="recent-video recent-video-hero">
               <img src="{html.escape(item['thumb'])}" alt="thumb">
               <div>
+                <div class="recent-badges">
+                  <span class="table-pill">{html.escape(item['duration'])}</span>
+                  <span class="table-pill muted">{html.escape(item['channel'])}</span>
+                </div>
                 <div class="recent-title">{html.escape(item['title'])}</div>
-                <div class="recent-sub">{html.escape(item['summary'][:120])}{'…' if len(item['summary']) > 120 else ''}</div>
-                <div class="recent-note">{html.escape(item['note'] or 'Chưa có ghi chú riêng.')}</div>
+                <div class="recent-sub">{summary}</div>
               </div>
             </div>
           </td>
-          <td>{html.escape(item['channel'])}</td>
-          <td>{html.escape(item['duration'])}</td>
           <td>
-            <form class="inline-form" method="post" action="/videos/update">
-              <input type="hidden" name="video_id" value="{html.escape(item['video_id'])}">
-              <input type="text" name="custom_title" value="{html.escape(item['title'])}" placeholder="Tên hiển thị">
-              <textarea name="note" placeholder="Ghi chú nội bộ">{html.escape(item['note'])}</textarea>
-              <div class="table-actions">
-                <button class="btn secondary" type="submit">Lưu</button>
-                <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
+            <div class="library-meta-block">
+              <div class="library-meta-label">Kênh</div>
+              <div class="library-meta-value">{html.escape(item['channel'])}</div>
+              <div class="library-meta-label">Ghi chú hiện tại</div>
+              <div class="recent-note">{note}</div>
+            </div>
+          </td>
+          <td>
+            <div class="library-actions-card">
+              <div class="quick-links">
+                <a class="inline-link strong" href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
                 <a class="inline-link" href="/report/{html.escape(item['report_name'])}">Report</a>
                 <a class="inline-link" href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
               </div>
-            </form>
-            <form class="inline-form danger-form" method="post" action="/videos/delete" onsubmit="return confirm('Xóa toàn bộ output của video này?');">
-              <input type="hidden" name="video_id" value="{html.escape(item['video_id'])}">
-              <button class="btn danger" type="submit">Xóa</button>
-            </form>
+              <form class="inline-form library-edit-form" method="post" action="/videos/update">
+                <input type="hidden" name="video_id" value="{html.escape(item['video_id'])}">
+                <label class="field-label compact">Tên hiển thị</label>
+                <input type="text" name="custom_title" value="{html.escape(item['title'])}" placeholder="Tên hiển thị">
+                <label class="field-label compact">Ghi chú nội bộ</label>
+                <textarea name="note" placeholder="Ghi chú nội bộ">{html.escape(item['note'])}</textarea>
+                <div class="table-actions table-actions-split">
+                  <button class="btn" type="submit">Lưu thay đổi</button>
+                </div>
+              </form>
+              <form class="inline-form danger-form" method="post" action="/videos/delete" onsubmit="return confirm('Xóa toàn bộ output của video này?');">
+                <input type="hidden" name="video_id" value="{html.escape(item['video_id'])}">
+                <button class="btn danger ghost-danger" type="submit">Xóa video này</button>
+              </form>
+            </div>
           </td>
         </tr>
         ''')
     return (
-        '<section class="card section-card">'
-        '<div class="section-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
-        '<p>CRUD cho danh sách video đã phân tích: sửa tên hiển thị, ghi chú nội bộ, mở lại analyze hoặc xóa cả bộ output.</p></div>'
-        '<div class="table-shell"><table class="recent-table"><thead><tr><th>Video</th><th>Kênh</th><th>Thời lượng</th><th>Quản lý</th></tr></thead><tbody>'
+        '<section class="card section-card library-card">'
+        '<div class="section-head library-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
+        '<p>Bảng này ưu tiên đọc nhanh, mở lại nhanh, rồi mới tới chỉnh sửa. Mỗi dòng là một workspace video hoàn chỉnh.</p></div>'
+        '<div class="table-shell library-shell"><table class="recent-table library-table"><thead><tr><th>Video</th><th>Thông tin</th><th>Quản lý</th></tr></thead><tbody>'
         + ''.join(rows) + '</tbody></table></div></section>'
     )
 
@@ -398,6 +415,27 @@ def _page(body: str, script: str = '') -> str:
     .recent-note {{ margin-top: 8px; color: #ffd09e; font-size: 13px; line-height: 1.5; }}
     .btn.danger {{ background: linear-gradient(135deg, #ff6b57, #d43c28); color: #fff8f6; box-shadow: 0 14px 30px rgba(212, 60, 40, 0.24); }}
     .danger-form {{ margin-top: 10px; }}
+    .library-card {{ background: linear-gradient(180deg, rgba(4, 11, 21, 0.96), rgba(7, 16, 31, 0.94)); border-color: rgba(148, 163, 184, 0.16); }}
+    .library-head {{ align-items: center; }}
+    .library-shell {{ background: rgba(2, 8, 23, 0.82); border-color: rgba(51, 65, 85, 0.95); }}
+    .library-table {{ min-width: 1080px; }}
+    .library-table th {{ background: rgba(15, 23, 42, 0.92); color: #cbd5e1; }}
+    .library-table td {{ padding-top: 22px; padding-bottom: 22px; }}
+    .recent-video-hero {{ grid-template-columns: 156px minmax(0, 1fr); gap: 16px; align-items: center; }}
+    .recent-video-hero img {{ width: 156px; height: 88px; border-radius: 16px; border-color: rgba(100, 116, 139, 0.4); }}
+    .recent-badges {{ display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }}
+    .table-pill {{ display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border-radius: 999px; background: rgba(34, 197, 94, 0.14); color: #bbf7d0; border: 1px solid rgba(34, 197, 94, 0.28); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }}
+    .table-pill.muted {{ background: rgba(148, 163, 184, 0.12); color: #cbd5e1; border-color: rgba(148, 163, 184, 0.22); }}
+    .library-meta-block {{ display: grid; gap: 10px; min-width: 220px; }}
+    .library-meta-label {{ color: #7dd3fc; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }}
+    .library-meta-value {{ color: #f8fafc; font-weight: 600; line-height: 1.5; }}
+    .library-actions-card {{ padding: 16px; border-radius: 18px; background: rgba(15, 23, 42, 0.82); border: 1px solid rgba(51, 65, 85, 0.7); }}
+    .quick-links {{ display: flex; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 14px; }}
+    .inline-link.strong {{ color: #86efac; font-weight: 700; }}
+    .library-edit-form {{ gap: 8px; }}
+    .field-label.compact {{ margin: 0; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8fb4ff; }}
+    .table-actions-split {{ justify-content: flex-start; }}
+    .ghost-danger {{ width: 100%; justify-content: center; box-shadow: none; }}
 
     .result-grid {{ display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; }}
     .thumb {{ width: 100%; height: 100%; object-fit: cover; min-height: 170px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); background: #050b14; }}
