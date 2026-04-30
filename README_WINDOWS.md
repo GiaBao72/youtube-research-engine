@@ -70,6 +70,24 @@ Có thể export lại riêng bằng:
 .venv\Scripts\python -m youtube_research.cli export-production VIDEO_ID
 ```
 
+## 9) Build pipeline bundle
+Sinh bundle hoàn chỉnh cho stack ngoài:
+```powershell
+.venv\Scripts\python -m youtube_research.cli build-pipeline VIDEO_ID
+```
+Hoặc:
+- `build_pipeline.bat VIDEO_ID`
+
+Bundle sẽ nằm ở:
+- `outputs\pipeline\<video_id>\`
+
+Trong đó có:
+- `moneyprinter.input.json`
+- `subtitle.input.json`
+- `finalize.input.json`
+- `commands.json`
+- `README.txt`
+
 ## 8) Nếu lỗi thường gặp
 ### Không tìm thấy Python
 - cài lại Python

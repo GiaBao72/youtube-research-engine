@@ -158,6 +158,48 @@ Package này chứa:
 - gợi ý post-process cho ffmpeg/MoviePy
 - best cut moments + visual prompts để dựng short nhanh hơn
 
+## Build pipeline bundle hoàn chỉnh
+Từ production package, có thể sinh thêm bundle để chạy stack ngoài:
+```bash
+./run.sh build-pipeline VIDEO_ID
+```
+Hoặc:
+```bash
+./build-pipeline.sh VIDEO_ID
+```
+
+Bundle này nằm tại:
+- `outputs/pipeline/<video_id>/`
+
+Bao gồm:
+- `moneyprinter.input.json`
+- `subtitle.input.json`
+- `finalize.input.json`
+- `commands.json`
+- `README.txt`
+
+Ý nghĩa:
+- `moneyprinter.input.json` → feed cho MoneyPrinter/ShortGPT
+- `subtitle.input.json` → feed cho auto-subtitle/custom caption flow
+- `finalize.input.json` → feed cho ffmpeg/MoviePy post-process
+- `commands.json` → command mẫu Linux/Windows để chạy từng bước
+
+### Cách dùng thực tế
+1. Analyze video trong `youtube-research-engine`
+2. Chạy `build-pipeline VIDEO_ID`
+3. Lấy file trong `outputs/pipeline/<video_id>/` để:
+   - chạy MoneyPrinter tạo video khung
+   - chạy auto-subtitle tạo/burn caption
+   - chạy ffmpeg finalize video cuối
+
+### Gợi ý đặt repo ngoài
+Để command mẫu đỡ phải sửa, có thể đặt ngang hàng:
+- `youtube-research-engine/`
+- `MoneyPrinter/`
+- `auto-subtitle/`
+
+Nếu repo ngoài nằm chỗ khác, chỉ cần sửa lại đường dẫn trong `commands.json`.
+
 ## Ghi chú về optional AI enrich
 Các tính năng sau phụ thuộc package/model cài được trên máy:
 - `sentence-transformers`

@@ -10,7 +10,8 @@ from .channels import add_favorite_channel, discover_channels, fetch_channel_vid
 from .config import Settings
 from .enrich import build_enrichment, cosine_similarity, infer_topics
 from .indexing import index_video, load_indexed_videos, sync_favorites_to_db
-from .production import write_production_package
+from .pipeline import build_pipeline_bundle
+from .production import build_production_package, write_production_package
 from .reporting import write_json, write_markdown_report
 from .youtube import collect_video_data
 
@@ -29,8 +30,11 @@ def run_analyze(settings: Settings, url: str) -> dict[str, str]:
 
     transcript_text = '\n'.join(item.get('text', '') for item in video.transcript)
     enrich = build_enrichment(analysis.summary, transcript_text)
-    index_video(settings, asdict(video), analysis.to_dict(), enrich=enrich)
-    production = write_production_package(settings.production_root, asdict(video), analysis.to_dict())
+    raw_dict = asdict(video)
+    analysis_dict = analysis.to_dict()
+    index_video(settings, raw_dict, analysis_dict, enrich=enrich)
+    production = write_production_package(settings.production_root, raw_dict, analysis_dict)
+    pipeline_bundle = build_pipeline_bundle(build_production_package(raw_dict, analysis_dict), settings.pipeline_root)
 
     return {
         'video_id': video.video_id,
@@ -42,6 +46,8 @@ def run_analyze(settings: Settings, url: str) -> dict[str, str]:
         'production_title': production['title'],
         'production_hook': production['hook'],
         'production_script': production['script'],
+        'pipeline_bundle_dir': pipeline_bundle['bundle_dir'],
+        'pipeline_commands': pipeline_bundle['commands'],
     }
 
 
@@ -119,6 +125,7 @@ def cmd_reindex(args: argparse.Namespace) -> int:
         enrich = build_enrichment(analysis.get('summary', ''), transcript_text)
         index_video(settings, raw, analysis, enrich=enrich)
         write_production_package(settings.production_root, raw, analysis)
+        build_pipeline_bundle(build_production_package(raw, analysis), settings.pipeline_root)
     sync_favorites_to_db(settings, load_favorites(project_root))
     rows = load_indexed_videos(settings)
     labels = infer_topics([row.get('summary') or '' for row in rows])
@@ -199,6 +206,18 @@ def cmd_export_production(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_build_pipeline(args: argparse.Namespace) -> int:
+    project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
+    production_path = settings.production_root / f'{args.video_id}.production.json'
+    if not production_path.exists():
+        raise SystemExit(f'Không thấy production package cho video_id={args.video_id}. Hãy analyze hoặc export-production trước.')
+    production_pkg = json.loads(production_path.read_text(encoding='utf-8'))
+    result = build_pipeline_bundle(production_pkg, settings.pipeline_root)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='youtube-research')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -250,6 +269,10 @@ def build_parser() -> argparse.ArgumentParser:
     export_prod = sub.add_parser('export-production', help='Xuất package cho MoneyPrinter / subtitle / ffmpeg từ 1 video đã analyze')
     export_prod.add_argument('video_id', help='Video ID đã có raw + analysis')
     export_prod.set_defaults(func=cmd_export_production)
+
+    pipeline = sub.add_parser('build-pipeline', help='Sinh pipeline bundle + command files cho MoneyPrinter / subtitle / ffmpeg')
+    pipeline.add_argument('video_id', help='Video ID đã có production package')
+    pipeline.set_defaults(func=cmd_build_pipeline)
     return parser
 
 
