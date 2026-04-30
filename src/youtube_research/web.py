@@ -213,6 +213,15 @@ def _nav() -> str:
     '''
 
 
+def _section_intro(eyebrow: str, title: str, text: str) -> str:
+    return (
+        '<div class="section-head">'
+        f'<div><div class="eyebrow">{html.escape(eyebrow)}</div><h2>{html.escape(title)}</h2></div>'
+        f'<p>{html.escape(text)}</p>'
+        '</div>'
+    )
+
+
 def _analyze_form(initial_urls: str = '', title: str = 'Biến video thành research package', intro: str = 'Dán 1 hoặc nhiều URL YouTube, mỗi dòng một URL. Hệ thống sẽ lấy transcript, phân tích nội dung và xuất report cùng production artifacts.') -> str:
     return f'''
       <section class="hero card hero-card">
@@ -284,7 +293,7 @@ def _page(body: str, script: str = '') -> str:
     html {{ scroll-behavior: smooth; }}
     body {{
       margin: 0;
-      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
       color: var(--text);
       background:
         radial-gradient(circle at top left, rgba(255, 122, 24, 0.18), transparent 28%),
@@ -404,6 +413,7 @@ def _page(body: str, script: str = '') -> str:
     .section-card {{ padding: 24px; }}
     .section-head {{ display: flex; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 18px; }}
     .section-head p {{ max-width: 460px; }}
+    .panel-stack {{ display: grid; gap: 18px; }}
     .stats-strip {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }}
     .stat-card {{ padding: 18px; border-radius: 22px; background: var(--panel-soft); border: 1px solid rgba(255,255,255,0.07); }}
     .stat-label {{ color: #8ea6ca; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }}
@@ -472,6 +482,16 @@ def _page(body: str, script: str = '') -> str:
     .inline-link {{ color: #ffd09e; font-size: 14px; }}
     .inline-link:hover {{ color: #fff1df; }}
     .topbar {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }}
+    .topbar.spread {{ justify-content: space-between; align-items: flex-start; }}
+    .topbar-actions {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+    .metric-row {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }}
+    .micro-stat {{ display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border-radius: 999px; background: rgba(148, 163, 184, 0.12); color: #dbe7ff; border: 1px solid rgba(148, 163, 184, 0.15); font-size: 12px; }}
+    .channel-toolbar {{ display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }}
+    .stack-form {{ display: grid; gap: 12px; }}
+    .stack-row {{ display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }}
+    .stack-row > input, .stack-row > select {{ flex: 1 1 160px; max-width: 220px; }}
+    .soft-panel {{ padding: 16px; border-radius: 18px; background: rgba(15, 23, 42, 0.58); border: 1px solid rgba(255,255,255,0.06); }}
+    .report-card {{ padding: 24px; }}
     .report {{ padding: 20px; border-radius: 20px; background: rgba(5, 12, 22, 0.88); border: 1px solid rgba(255,255,255,0.06); white-space: pre-wrap; line-height: 1.72; color: #edf4ff; overflow: auto; }}
     .artifact-panel {{ margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; }}
     .artifact-toggle {{ display: inline-flex; align-items: center; gap: 8px; color: #f5c08a; font-size: 14px; cursor: pointer; }}
@@ -490,12 +510,13 @@ def _page(body: str, script: str = '') -> str:
       .nav-shell {{ border-radius: 20px; padding: 14px; }}
       .brand-note {{ display: none; }}
       .nav-links {{ width: 100%; justify-content: flex-start; }}
-      .hero-card, .section-card, .result {{ padding: 16px; }}
+      .hero-card, .section-card, .result, .report-card {{ padding: 16px; }}
       .meta {{ grid-template-columns: 1fr; gap: 6px; }}
       h1 {{ max-width: none; }}
       .recent-table {{ min-width: 680px; }}
       .recent-video {{ grid-template-columns: 96px minmax(0, 1fr); }}
       .recent-video img {{ width: 96px; height: 60px; }}
+      .stack-row > input, .stack-row > select {{ max-width: none; }}
     }}
   </style>
 </head>
@@ -527,7 +548,7 @@ def analyze() -> str:
             title='Analyze video và mở gói output',
             intro='Giữ nguyên luồng analyze hiện tại nhưng hiển thị lại dưới giao diện rõ ràng hơn để bạn xem kết quả, mở report và quay lại refine nhanh hơn.',
         ),
-        '<section class="section-card card"><div class="section-head"><div><div class="eyebrow">Output</div><h2>Kết quả phân tích</h2></div><p>Mỗi card gom phần dùng thường xuyên lên trước, còn artifact kỹ thuật nằm trong More artifacts.</p></div><div class="grid">',
+        '<section class="section-card card">' + _section_intro('Output', 'Kết quả phân tích', 'Card kết quả ưu tiên phần dùng thường xuyên. Link kỹ thuật được gom xuống dưới để tránh rối giao diện.') + '<div class="grid">',
     ]
     for url in urls:
         try:
@@ -567,7 +588,6 @@ def analyze() -> str:
                     </div>
                     <div class="summary">{html.escape(summary)}</div>
                     <div class="actions">
-                      <a class="btn secondary" href="/analyze?url={html.escape(url)}">Mở trang Analyze</a>
                       {''.join(primary_links) or '<span class="hint">Chưa có artifact chính.</span>'}
                     </div>
                     {more_artifacts_html}
@@ -601,8 +621,12 @@ def discover_page() -> str:
           <img src="{html.escape(thumb)}" alt="thumb">
           <div>
             <div class="channel-title">{html.escape(ch.get('name') or 'Unknown')}</div>
-            <div class="channel-meta">Subscribers: {html.escape(str(ch.get('subscriber_count') or 'N/A'))} · Videos: {html.escape(str(ch.get('video_count') or 'N/A'))}</div>
-            <div class="channel-meta">Relevance score: {html.escape(str(ch.get('relevance_score') or 0))} · Matched videos: {html.escape(str(ch.get('matched_video_count') or 0))}</div>
+            <div class="metric-row">
+              <span class="micro-stat">Subscribers: {html.escape(str(ch.get('subscriber_count') or 'N/A'))}</span>
+              <span class="micro-stat">Videos: {html.escape(str(ch.get('video_count') or 'N/A'))}</span>
+              <span class="micro-stat">Relevance: {html.escape(str(ch.get('relevance_score') or 0))}</span>
+              <span class="micro-stat">Matched: {html.escape(str(ch.get('matched_video_count') or 0))}</span>
+            </div>
             <div class="channel-desc">{html.escape(ch.get('description') or '')}</div>
             <div class="summary">Ví dụ video khớp chủ đề: {html.escape(' | '.join(ch.get('sample_video_titles') or []))}</div>
             <div class="actions">
@@ -625,9 +649,9 @@ def discover_page() -> str:
         result_html = f'<section class="section-card card"><p class="error">{html.escape(error)}</p></section>'
     elif topic:
         result_html = (
-            '<section class="section-card card"><div class="section-head"><div><div class="eyebrow">Results</div><h2>Kênh phù hợp</h2></div>'
-            '<p>Danh sách kênh được gom từ các video match tốt nhất với chủ đề bạn vừa tìm.</p></div>'
-            '<div class="channel-grid">' + ''.join(cards or ['<p class="hint">Không tìm thấy kênh phù hợp.</p>']) + '</div></section>'
+            '<section class="section-card card">'
+            + _section_intro('Results', 'Kênh phù hợp', 'Danh sách kênh được gom từ các video match tốt nhất với chủ đề bạn vừa tìm.')
+            + '<div class="channel-grid">' + ''.join(cards or ['<p class="hint">Không tìm thấy kênh phù hợp.</p>']) + '</div></section>'
         )
 
     body = f'''
@@ -739,14 +763,28 @@ def favorites_analyze_channel() -> str:
             ''')
 
     body = f'''
-      <div class="card">
-        <div class="topbar">
-          <h1 style="margin:0">Analyze channel: {html.escape(channel_name or channel_id)}</h1>
-          <a class="btn secondary" href="/favorites">← Quay lại Favorites</a>
+      <section class="hero card hero-card">
+        <div class="hero-copy">
+          <div class="eyebrow">Batch analyze</div>
+          <h1>Analyze channel: {html.escape(channel_name or channel_id)}</h1>
+          <p>Lấy {len(videos)} video từ channel và chạy analyze hàng loạt. Mỗi result giữ lại đúng link cần thiết để mở report hoặc JSON.</p>
+          <div class="hero-points">
+            <span class="tag soft">{len(videos)} videos queued</span>
+            <span class="tag soft">Batch report</span>
+            <span class="tag soft">Favorites workflow</span>
+          </div>
         </div>
-        <p>Lấy {len(videos)} video từ channel và chạy analyze hàng loạt.</p>
-        <div class="grid">{''.join(cards)}</div>
-      </div>
+        <div class="hero-panel">
+          <div class="soft-panel">
+            <div class="field-label">Nguồn</div>
+            <div class="summary">{html.escape(channel_name or channel_id)}</div>
+            <div class="actions hero-actions">
+              <a class="btn secondary" href="/favorites">Quay lại Favorites</a>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="section-card card">{_section_intro('Results', 'Kết quả batch analyze', 'Danh sách này chỉ giữ 2 action chính: xem report hoặc mở analysis JSON để tránh lặp link thừa.')}<div class="grid">{''.join(cards)}</div></section>
     '''
     return _page(body)
 
@@ -759,16 +797,18 @@ def favorites_page() -> str:
         cards.append(f'''
         <div class="fav-card">
           <div>
-            <div class="fav-title">{html.escape(item.get('name') or 'Unknown')}</div>
-            <div class="fav-meta">{html.escape(item.get('topic') or 'N/A')}</div>
-            <div class="fav-note">{html.escape(item.get('note') or '')}</div>
-            <div class="actions">
+            <div class="channel-toolbar">
+              <div>
+                <div class="fav-title">{html.escape(item.get('name') or 'Unknown')}</div>
+                <div class="fav-meta">{html.escape(item.get('topic') or 'N/A')}</div>
+              </div>
               <a class="btn secondary" href="{html.escape(item.get('url') or '#')}" target="_blank">Mở kênh</a>
             </div>
-            <form method="post" action="/favorites/analyze-channel">
+            <div class="fav-note">{html.escape(item.get('note') or '')}</div>
+            <form class="stack-form" method="post" action="/favorites/analyze-channel">
               <input type="hidden" name="channel_id" value="{html.escape(item.get('channel_id') or '')}">
               <input type="hidden" name="name" value="{html.escape(item.get('name') or '')}">
-              <div class="actions">
+              <div class="stack-row">
                 <input type="number" name="limit" value="5" min="1" max="20" style="max-width:120px;">
                 <select name="order" style="max-width:180px;">
                   <option value="date">Video mới nhất</option>
@@ -784,7 +824,7 @@ def favorites_page() -> str:
         ''')
     body = '<section class="hero card hero-card"><div class="hero-copy"><div class="eyebrow">Favorites</div><h1>Kênh yêu thích</h1><p>Lưu local tại <code>favorites/channels.json</code>. Từ đây bạn có thể mở kênh hoặc analyze hàng loạt theo số lượng video mong muốn.</p><div class="hero-points"><span class="tag soft">Local library</span><span class="tag soft">Batch analyze</span><span class="tag soft">Quick access</span></div></div><div class="hero-panel"><div class="stat-card"><div class="stat-label">Saved channels</div><div class="stat-value">' + str(len(items)) + '</div><div class="stat-note">Danh sách kênh được lưu từ Discover hoặc thêm thủ công sau này.</div></div></div></section>'
     if items:
-        body += '<section class="section-card card"><div class="section-head"><div><div class="eyebrow">Collection</div><h2>Danh sách kênh đã lưu</h2></div><p>Chọn số lượng video và kiểu sắp xếp rồi chạy analyze hàng loạt ngay trong card.</p></div><div class="fav-grid">' + ''.join(cards) + '</div></section>'
+        body += '<section class="section-card card">' + _section_intro('Collection', 'Danh sách kênh đã lưu', 'Giữ lại đúng action cần thiết: mở kênh hoặc analyze hàng loạt theo số lượng video mong muốn.') + '<div class="fav-grid">' + ''.join(cards) + '</div></section>'
     else:
         body += '<section class="section-card card"><p class="hint">Chưa có kênh nào được lưu.</p></section>'
     return _page(body)
@@ -808,12 +848,16 @@ def report_view(name: str) -> Response | str:
         if source_url else ''
     )
     body = f'''
-      <div class="card">
-        <div class="topbar">
-          <h1 style="margin:0">{html.escape(name)}</h1>
-          <a class="btn secondary" href="/">← Trang chủ</a>
-          {analyze_link}
-          <a class="btn secondary" href="/files/reports/{html.escape(name)}">Tải .md</a>
+      <div class="card report-card">
+        <div class="topbar spread">
+          <div>
+            <div class="eyebrow">Report</div>
+            <h1 style="margin:0">{html.escape(name)}</h1>
+          </div>
+          <div class="topbar-actions">
+            {analyze_link}
+            <a class="btn secondary" href="/files/reports/{html.escape(name)}">Tải .md</a>
+          </div>
         </div>
         <div class="report">{html.escape(content)}</div>
       </div>
