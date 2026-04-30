@@ -302,7 +302,10 @@ def analyze() -> str:
                       <div class="label">URL</div><div><a href="{html.escape(url)}" target="_blank">{html.escape(url)}</a></div>
                     </div>
                     <div class="summary">{html.escape(summary)}</div>
-                    <div class="actions">{''.join(primary_links) or '<span class="hint">Chưa có artifact chính.</span>'}</div>
+                    <div class="actions">
+                      <a class="btn secondary" href="/analyze?url={html.escape(url)}">Mở trang Analyze</a>
+                      {''.join(primary_links) or '<span class="hint">Chưa có artifact chính.</span>'}
+                    </div>
                     {more_artifacts_html}
                   </div>
                 </div>
