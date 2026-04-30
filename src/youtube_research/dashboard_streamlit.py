@@ -43,6 +43,10 @@ def read_analysis_json(video_id: str) -> dict:
         return {}
 
 
+def existing_paths(paths: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
+    return [(label, path) for label, path in paths if path.exists()]
+
+
 def similar_rows(target_row: dict, all_rows: list[dict], limit: int = 5):
     target_vec = parse_json_field(target_row.get('embedding_json'))
     out = []
@@ -149,8 +153,31 @@ with tab2:
     options = {f"{row.get('title') or row.get('video_id')} [{row.get('video_id')}]": row for row in rows}
     selected_label = st.selectbox('Chọn video', list(options.keys()))
     selected = options[selected_label]
-    deep = (read_analysis_json(selected.get('video_id') or '').get('deep_analysis') or {})
+    video_id = selected.get('video_id') or ''
+    deep = (read_analysis_json(video_id).get('deep_analysis') or {})
     scores = deep.get('scores', {})
+    production_files = existing_paths([
+        ('Production JSON', settings.production_root / f'{video_id}.production.json'),
+        ('Title TXT', settings.production_root / f'{video_id}.title.txt'),
+        ('Hook TXT', settings.production_root / f'{video_id}.hook.txt'),
+        ('Script TXT', settings.production_root / f'{video_id}.script.txt'),
+    ])
+    pipeline_root = settings.pipeline_root / video_id
+    pipeline_files = existing_paths([
+        ('Pipeline README', pipeline_root / 'README.txt'),
+        ('Commands JSON', pipeline_root / 'commands.json'),
+        ('MoneyPrinter Input', pipeline_root / 'moneyprinter.input.json'),
+        ('Subtitle Input', pipeline_root / 'subtitle.input.json'),
+        ('Finalize Input', pipeline_root / 'finalize.input.json'),
+        ('Run MoneyPrinter (.sh)', pipeline_root / 'run_moneyprinter.sh'),
+        ('Run Subtitle (.sh)', pipeline_root / 'run_subtitle.sh'),
+        ('Run Finalize (.sh)', pipeline_root / 'run_finalize.sh'),
+        ('Run All (.sh)', pipeline_root / 'run_all.sh'),
+        ('Run MoneyPrinter (.bat)', pipeline_root / 'run_moneyprinter.bat'),
+        ('Run Subtitle (.bat)', pipeline_root / 'run_subtitle.bat'),
+        ('Run Finalize (.bat)', pipeline_root / 'run_finalize.bat'),
+        ('Run All (.bat)', pipeline_root / 'run_all.bat'),
+    ])
 
     st.subheader(selected.get('title') or selected.get('video_id'))
     st.caption(f"{selected.get('channel') or 'N/A'} · {selected.get('video_id')}")
@@ -226,6 +253,26 @@ with tab2:
     with rw3:
         st.markdown('**Storytelling**')
         st.write((deep.get('rewrite_modes') or {}).get('storytelling', []))
+
+    st.markdown('### Production Package')
+    if production_files:
+        p1, p2 = st.columns(2)
+        for idx, (label, path) in enumerate(production_files):
+            with (p1 if idx % 2 == 0 else p2):
+                st.link_button(label, path.as_uri())
+                st.caption(str(path))
+    else:
+        st.info('Chưa có production package cho video này.')
+
+    st.markdown('### Pipeline Runner')
+    if pipeline_files:
+        c1, c2 = st.columns(2)
+        for idx, (label, path) in enumerate(pipeline_files):
+            with (c1 if idx % 2 == 0 else c2):
+                st.link_button(label, path.as_uri())
+                st.caption(str(path))
+    else:
+        st.info('Chưa có pipeline bundle cho video này.')
 
     st.markdown('### Similar videos')
     sims = similar_rows(selected, rows)

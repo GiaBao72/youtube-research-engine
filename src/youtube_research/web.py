@@ -31,6 +31,12 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def _link_if_exists(path: Path, href: str, label: str, button_class: str = 'btn secondary') -> str:
+    if not path.exists():
+        return ''
+    return f'<a class="{button_class}" href="{html.escape(href)}">{html.escape(label)}</a>'
+
+
 def _recent_items(limit: int = 8) -> list[dict]:
     items = []
     for raw_path in sorted(SETTINGS.raw_root.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -196,11 +202,43 @@ def analyze() -> str:
             raw_path = Path(result['raw'])
             analysis_path = Path(result['analysis'])
             report_path = Path(result['report'])
+            production_path = Path(result.get('production_package') or '')
+            production_title_path = Path(result.get('production_title') or '')
+            production_hook_path = Path(result.get('production_hook') or '')
+            production_script_path = Path(result.get('production_script') or '')
+            pipeline_dir = Path(result.get('pipeline_bundle_dir') or '')
             raw = _read_json(raw_path)
             analysis = _read_json(analysis_path)
             thumb = f'https://i.ytimg.com/vi/{raw.get("video_id")}/hqdefault.jpg'
             mode = analysis.get('analysis_mode', 'llm').upper()
             summary = analysis.get('summary', '')
+            production_links = ''.join([
+                _link_if_exists(production_path, f'/files/production/{production_path.name}', 'Production JSON'),
+                _link_if_exists(production_title_path, f'/files/production/{production_title_path.name}', 'Title TXT'),
+                _link_if_exists(production_hook_path, f'/files/production/{production_hook_path.name}', 'Hook TXT'),
+                _link_if_exists(production_script_path, f'/files/production/{production_script_path.name}', 'Script TXT'),
+            ])
+            pipeline_links = []
+            pipeline_video_id = result.get('video_id') or raw.get('video_id') or ''
+            if pipeline_dir.exists() and pipeline_video_id:
+                for filename, label in [
+                    ('README.txt', 'Pipeline README'),
+                    ('commands.json', 'Commands JSON'),
+                    ('moneyprinter.input.json', 'MoneyPrinter Input'),
+                    ('subtitle.input.json', 'Subtitle Input'),
+                    ('finalize.input.json', 'Finalize Input'),
+                    ('run_moneyprinter.sh', 'Run MoneyPrinter (.sh)'),
+                    ('run_subtitle.sh', 'Run Subtitle (.sh)'),
+                    ('run_finalize.sh', 'Run Finalize (.sh)'),
+                    ('run_all.sh', 'Run All (.sh)'),
+                    ('run_moneyprinter.bat', 'Run MoneyPrinter (.bat)'),
+                    ('run_subtitle.bat', 'Run Subtitle (.bat)'),
+                    ('run_finalize.bat', 'Run Finalize (.bat)'),
+                    ('run_all.bat', 'Run All (.bat)'),
+                ]:
+                    pipeline_links.append(
+                        _link_if_exists(pipeline_dir / filename, f'/files/pipeline/{pipeline_video_id}/{filename}', label)
+                    )
             blocks.append(f'''
               <div class="result">
                 <div class="result-grid">
@@ -223,6 +261,10 @@ def analyze() -> str:
                       <a class="btn secondary" href="/files/reports/{html.escape(report_path.name)}">Markdown</a>
                       <a class="btn secondary" href="/files/raw/{html.escape(analysis_path.name)}">Analysis JSON</a>
                       <a class="btn secondary" href="/files/raw/{html.escape(raw_path.name)}">Raw JSON</a>
+                    </div>
+                    <div class="meta" style="margin-top:16px;">
+                      <div class="label">Production</div><div>{production_links or '<span class="hint">Chưa có production output.</span>'}</div>
+                      <div class="label">Pipeline</div><div>{''.join(pipeline_links) or '<span class="hint">Chưa có pipeline bundle.</span>'}</div>
                     </div>
                   </div>
                 </div>
@@ -428,11 +470,25 @@ def report_view(name: str) -> Response | str:
 
 @app.get('/files/<kind>/<path:name>')
 def files(kind: str, name: str) -> Response:
-    if kind not in {'raw', 'reports'}:
+    if kind not in {'raw', 'reports', 'production'}:
         return Response('Invalid file type', status=400)
-    root = SETTINGS.raw_root if kind == 'raw' else SETTINGS.reports_root
+    if kind == 'raw':
+        root = SETTINGS.raw_root
+    elif kind == 'reports':
+        root = SETTINGS.reports_root
+    else:
+        root = SETTINGS.production_root
     path = (root / name).resolve()
     if not str(path).startswith(str(root.resolve())) or not path.exists():
+        return Response('Not found', status=404)
+    return send_file(path)
+
+
+@app.get('/files/pipeline/<video_id>/<path:name>')
+def pipeline_files(video_id: str, name: str) -> Response:
+    root = (SETTINGS.pipeline_root / video_id).resolve()
+    path = (root / name).resolve()
+    if not str(path).startswith(str(root)) or not path.exists():
         return Response('Not found', status=404)
     return send_file(path)
 
