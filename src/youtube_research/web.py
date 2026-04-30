@@ -131,6 +131,7 @@ def _recent_html() -> str:
             <div class="mini-summary">{html.escape(item['summary'][:140])}{'…' if len(item['summary']) > 140 else ''}</div>
             <div class="mini-links">
               <a href="/analyze?url={html.escape(item['source_url'])}">Phân tích lại</a>
+              <a href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
               <a href="/report/{html.escape(item['report_name'])}">Xem report</a>
               <a href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
             </div>
@@ -496,11 +497,23 @@ def report_view(name: str) -> Response | str:
     if not str(path).startswith(str(SETTINGS.reports_root.resolve())) or not path.exists():
         return Response('Not found', status=404)
     content = path.read_text(encoding='utf-8')
+    source_url = ''
+    raw_path = SETTINGS.raw_root / f'{Path(name).stem}.json'
+    if raw_path.exists():
+        try:
+            source_url = _read_json(raw_path).get('url') or ''
+        except Exception:
+            source_url = ''
+    analyze_link = (
+        f'<a class="btn secondary" href="/analyze?url={html.escape(source_url)}">Mở Analyze</a>'
+        if source_url else ''
+    )
     body = f'''
       <div class="card">
         <div class="topbar">
           <h1 style="margin:0">{html.escape(name)}</h1>
           <a class="btn secondary" href="/">← Trang chủ</a>
+          {analyze_link}
           <a class="btn secondary" href="/files/reports/{html.escape(name)}">Tải .md</a>
         </div>
         <div class="report">{html.escape(content)}</div>
