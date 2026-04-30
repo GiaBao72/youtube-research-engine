@@ -55,6 +55,7 @@ def _recent_items(limit: int = 8) -> list[dict]:
             'channel': raw.get('channel') or 'N/A',
             'duration': _format_duration(raw.get('duration')),
             'summary': analysis.get('summary') or '',
+            'source_url': raw.get('url') or f'https://www.youtube.com/watch?v={raw.get("video_id", raw_path.stem)}',
             'thumb': f'https://i.ytimg.com/vi/{raw.get("video_id", raw_path.stem)}/hqdefault.jpg',
             'report_name': report_path.name,
             'analysis_name': analysis_path.name,
@@ -79,6 +80,7 @@ def _recent_html() -> str:
             <div class="mini-meta">{html.escape(item['channel'])} · {html.escape(item['duration'])}</div>
             <div class="mini-summary">{html.escape(item['summary'][:140])}{'…' if len(item['summary']) > 140 else ''}</div>
             <div class="mini-links">
+              <a href="/analyze?url={html.escape(item['source_url'])}">Phân tích lại</a>
               <a href="/report/{html.escape(item['report_name'])}">Xem report</a>
               <a href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
             </div>
@@ -188,9 +190,11 @@ def index() -> str:
     return _page(body, script)
 
 
-@app.post('/analyze')
+@app.route('/analyze', methods=['GET', 'POST'])
 def analyze() -> str:
-    raw_urls = request.form.get('urls', '')
+    raw_urls = request.values.get('urls', '')
+    if not raw_urls:
+        raw_urls = request.values.get('url', '')
     urls = [line.strip() for line in raw_urls.splitlines() if line.strip()]
     if not urls:
         return _page('<div class="card"><h1>YouTube Research</h1><p class="error">Bạn chưa nhập URL nào.</p></div>')
