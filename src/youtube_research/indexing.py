@@ -48,10 +48,20 @@ def connect_db(settings: Settings):
           keywords_json TEXT,
           embedding_json TEXT,
           topic_label TEXT,
+          custom_title TEXT,
+          note TEXT,
           indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         '''
     )
+    for statement in [
+        'ALTER TABLE videos ADD COLUMN IF NOT EXISTS custom_title TEXT',
+        'ALTER TABLE videos ADD COLUMN IF NOT EXISTS note TEXT',
+    ]:
+        try:
+            conn.execute(statement)
+        except Exception:
+            pass
     conn.execute(
         '''
         CREATE TABLE IF NOT EXISTS favorite_channels (
@@ -146,3 +156,39 @@ def load_favorite_channels(settings: Settings) -> list[dict[str, Any]]:
     rows = conn.execute('SELECT * FROM favorite_channels ORDER BY added_at DESC').fetchdf().to_dict(orient='records')
     conn.close()
     return rows
+
+
+def update_video_record(settings: Settings, video_id: str, custom_title: str, note: str) -> None:
+    conn = connect_db(settings)
+    conn.execute(
+        'UPDATE videos SET custom_title = ?, note = ? WHERE video_id = ?',
+        [custom_title.strip() or None, note.strip() or None, video_id],
+    )
+    conn.close()
+
+
+def delete_video_record(settings: Settings, video_id: str) -> None:
+    conn = connect_db(settings)
+    row = conn.execute('SELECT url FROM videos WHERE video_id = ?', [video_id]).fetchone()
+    conn.execute('DELETE FROM videos WHERE video_id = ?', [video_id])
+    conn.close()
+
+    if row and row[0]:
+        raw_path = settings.raw_root / f'{video_id}.json'
+        analysis_path = settings.raw_root / f'{video_id}.analysis.json'
+        report_path = settings.reports_root / f'{video_id}.md'
+        pipeline_dir = settings.pipeline_root / video_id
+        for suffix in ['.json', '.title.txt', '.hook.txt', '.script.txt']:
+            production_path = settings.production_root / f'{video_id}{suffix}'
+            if production_path.exists():
+                production_path.unlink()
+        for path in [raw_path, analysis_path, report_path]:
+            if path.exists():
+                path.unlink()
+        if pipeline_dir.exists():
+            for child in sorted(pipeline_dir.glob('**/*'), reverse=True):
+                if child.is_file():
+                    child.unlink()
+                elif child.is_dir():
+                    child.rmdir()
+            pipeline_dir.rmdir()

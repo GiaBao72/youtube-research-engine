@@ -9,6 +9,7 @@ from flask import Flask, Response, redirect, request, send_file, url_for
 from .channels import add_favorite_channel, discover_channels, fetch_channel_videos, load_favorites
 from .cli import run_analyze
 from .config import Settings
+from .indexing import delete_video_record, load_indexed_videos, update_video_record
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -87,39 +88,46 @@ def _result_artifact_groups(result: dict[str, str], raw: dict, report_path: Path
     return primary_links, secondary_links
 
 
-def _recent_items(limit: int = 8) -> list[dict]:
+def _recent_items(limit: int = 50) -> list[dict]:
+    rows = load_indexed_videos(SETTINGS)
     items = []
-    for raw_path in sorted(SETTINGS.raw_root.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True):
-        if raw_path.name.endswith('.analysis.json'):
+    for row in rows[:limit]:
+        video_id = row.get('video_id') or ''
+        if not video_id:
             continue
-        analysis_path = SETTINGS.raw_root / f'{raw_path.stem}.analysis.json'
-        report_path = SETTINGS.reports_root / f'{raw_path.stem}.md'
-        try:
-            raw = _read_json(raw_path)
-            analysis = _read_json(analysis_path) if analysis_path.exists() else {}
-        except Exception:
-            continue
+        report_path = SETTINGS.reports_root / f'{video_id}.md'
+        analysis_path = SETTINGS.raw_root / f'{video_id}.analysis.json'
+        raw_path = SETTINGS.raw_root / f'{video_id}.json'
+        title = row.get('custom_title') or row.get('title') or video_id
+        source_url = row.get('url') or f'https://www.youtube.com/watch?v={video_id}'
+        summary = row.get('summary') or ''
+        note = row.get('note') or ''
         items.append({
-            'video_id': raw.get('video_id') or raw_path.stem,
-            'title': raw.get('title') or raw_path.stem,
-            'channel': raw.get('channel') or 'N/A',
-            'duration': _format_duration(raw.get('duration')),
-            'summary': analysis.get('summary') or '',
-            'source_url': raw.get('url') or f'https://www.youtube.com/watch?v={raw.get("video_id", raw_path.stem)}',
-            'thumb': f'https://i.ytimg.com/vi/{raw.get("video_id", raw_path.stem)}/hqdefault.jpg',
+            'video_id': video_id,
+            'title': title,
+            'channel': row.get('channel') or 'N/A',
+            'duration': _format_duration(row.get('duration')),
+            'summary': summary,
+            'note': note,
+            'source_url': source_url,
+            'thumb': f'https://i.ytimg.com/vi/{video_id}/hqdefault.jpg',
             'report_name': report_path.name,
             'analysis_name': analysis_path.name,
             'raw_name': raw_path.name,
         })
-        if len(items) >= limit:
-            break
     return items
 
 
-def _recent_html() -> str:
+def _analyzed_videos_table() -> str:
     items = _recent_items()
     if not items:
-        return ''
+        return (
+            '<section class="card section-card">'
+            '<div class="section-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
+            '<p>Danh sách video đã phân tích sẽ hiện ở đây để bạn sửa nhanh hoặc xóa khỏi workspace.</p></div>'
+            '<p class="hint">Chưa có video nào được phân tích.</p></section>'
+        )
+
     rows = []
     for item in items:
         rows.append(f'''
@@ -130,28 +138,42 @@ def _recent_html() -> str:
               <div>
                 <div class="recent-title">{html.escape(item['title'])}</div>
                 <div class="recent-sub">{html.escape(item['summary'][:120])}{'…' if len(item['summary']) > 120 else ''}</div>
+                <div class="recent-note">{html.escape(item['note'] or 'Chưa có ghi chú riêng.')}</div>
               </div>
             </div>
           </td>
           <td>{html.escape(item['channel'])}</td>
           <td>{html.escape(item['duration'])}</td>
           <td>
-            <div class="table-actions">
-              <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Phân tích lại</a>
-              <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
-              <a class="inline-link" href="/report/{html.escape(item['report_name'])}">Xem report</a>
-              <a class="inline-link" href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
-            </div>
+            <form class="inline-form" method="post" action="/videos/update">
+              <input type="hidden" name="video_id" value="{html.escape(item['video_id'])}">
+              <input type="text" name="custom_title" value="{html.escape(item['title'])}" placeholder="Tên hiển thị">
+              <textarea name="note" placeholder="Ghi chú nội bộ">{html.escape(item['note'])}</textarea>
+              <div class="table-actions">
+                <button class="btn secondary" type="submit">Lưu</button>
+                <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
+                <a class="inline-link" href="/report/{html.escape(item['report_name'])}">Report</a>
+                <a class="inline-link" href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
+              </div>
+            </form>
+            <form class="inline-form danger-form" method="post" action="/videos/delete" onsubmit="return confirm('Xóa toàn bộ output của video này?');">
+              <input type="hidden" name="video_id" value="{html.escape(item['video_id'])}">
+              <button class="btn danger" type="submit">Xóa</button>
+            </form>
           </td>
         </tr>
         ''')
     return (
         '<section class="card section-card">'
         '<div class="section-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
-        '<p>Mở lại nhanh các video đã xử lý, đọc report hoặc quay lại trang analyze.</p></div>'
-        '<div class="table-shell"><table class="recent-table"><thead><tr><th>Video</th><th>Kênh</th><th>Thời lượng</th><th>Hành động</th></tr></thead><tbody>'
+        '<p>CRUD cho danh sách video đã phân tích: sửa tên hiển thị, ghi chú nội bộ, mở lại analyze hoặc xóa cả bộ output.</p></div>'
+        '<div class="table-shell"><table class="recent-table"><thead><tr><th>Video</th><th>Kênh</th><th>Thời lượng</th><th>Quản lý</th></tr></thead><tbody>'
         + ''.join(rows) + '</tbody></table></div></section>'
     )
+
+
+def _recent_html() -> str:
+    return _analyzed_videos_table()
 
 
 def _nav() -> str:
@@ -370,7 +392,13 @@ def _page(body: str, script: str = '') -> str:
     .stat-label {{ color: #8ea6ca; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }}
     .stat-value {{ font-size: 30px; font-weight: 700; margin-top: 8px; }}
     .stat-note {{ color: var(--muted); font-size: 14px; margin-top: 6px; }}
-    .result {{ padding: 18px; background: linear-gradient(180deg, rgba(13, 27, 48, 0.96), rgba(9, 18, 33, 0.94)); border: 1px solid rgba(255,255,255,0.07); border-radius: 24px; }}
+    .inline-form {{ display: grid; gap: 10px; }}
+    .inline-form input[type="text"], .inline-form textarea {{ width: 100%; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; background: rgba(255,255,255,0.04); color: var(--text); padding: 10px 12px; font: inherit; }}
+    .inline-form textarea {{ min-height: 76px; resize: vertical; }}
+    .recent-note {{ margin-top: 8px; color: #ffd09e; font-size: 13px; line-height: 1.5; }}
+    .btn.danger {{ background: linear-gradient(135deg, #ff6b57, #d43c28); color: #fff8f6; box-shadow: 0 14px 30px rgba(212, 60, 40, 0.24); }}
+    .danger-form {{ margin-top: 10px; }}
+
     .result-grid {{ display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; }}
     .thumb {{ width: 100%; height: 100%; object-fit: cover; min-height: 170px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); background: #050b14; }}
     .meta {{ display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px 14px; margin: 14px 0 16px; }}
@@ -442,36 +470,7 @@ def _page(body: str, script: str = '') -> str:
 
 @app.get('/')
 def index() -> str:
-    recent_count = len(_recent_items())
-    stats = f'''
-      <section class="section-card card">
-        <div class="section-head">
-          <div>
-            <div class="eyebrow">Snapshot</div>
-            <h2>Workspace đang sẵn sàng để sản xuất</h2>
-          </div>
-          <p>Đi từ URL sang report, script và production artifacts ngay trong một giao diện gọn hơn.</p>
-        </div>
-        <div class="stats-strip">
-          <div class="stat-card">
-            <div class="stat-label">Recent items</div>
-            <div class="stat-value">{recent_count}</div>
-            <div class="stat-note">Các video gần đây có thể mở lại ngay.</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Output set</div>
-            <div class="stat-value">6+</div>
-            <div class="stat-note">Report, markdown, production files và artifact phụ.</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Next move</div>
-            <div class="stat-value">Ship</div>
-            <div class="stat-note">Analyze xong là có thể qua bước dựng hoặc refine.</div>
-          </div>
-        </div>
-      </section>
-    '''
-    body = _analyze_form() + stats + _recent_html()
+    body = _analyze_form() + _recent_html()
     return _page(body, _analyze_form_script())
 
 
@@ -624,6 +623,27 @@ def discover_page() -> str:
       {result_html}
     '''
     return _page(body)
+
+
+@app.post('/videos/update')
+def videos_update() -> Response:
+    video_id = (request.form.get('video_id') or '').strip()
+    if video_id:
+        update_video_record(
+            SETTINGS,
+            video_id=video_id,
+            custom_title=request.form.get('custom_title', ''),
+            note=request.form.get('note', ''),
+        )
+    return redirect(url_for('index'))
+
+
+@app.post('/videos/delete')
+def videos_delete() -> Response:
+    video_id = (request.form.get('video_id') or '').strip()
+    if video_id:
+        delete_video_record(SETTINGS, video_id)
+    return redirect(url_for('index'))
 
 
 @app.post('/favorites/add')
