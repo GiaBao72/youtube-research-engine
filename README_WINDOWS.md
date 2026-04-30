@@ -87,6 +87,10 @@ Trong đó có:
 - `finalize.input.json`
 - `commands.json`
 - `README.txt`
+- `run_moneyprinter.bat`
+- `run_subtitle.bat`
+- `run_finalize.bat`
+- `run_all.bat`
 
 ## 8) Nếu lỗi thường gặp
 ### Không tìm thấy Python

@@ -177,6 +177,10 @@ Bao gồm:
 - `finalize.input.json`
 - `commands.json`
 - `README.txt`
+- `run_moneyprinter.sh` / `run_moneyprinter.bat`
+- `run_subtitle.sh` / `run_subtitle.bat`
+- `run_finalize.sh` / `run_finalize.bat`
+- `run_all.sh` / `run_all.bat`
 
 Ý nghĩa:
 - `moneyprinter.input.json` → feed cho MoneyPrinter/ShortGPT
