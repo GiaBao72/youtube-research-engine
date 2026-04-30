@@ -32,6 +32,16 @@ def parse_json_field(value: str):
         return []
 
 
+def read_analysis_json(video_id: str) -> dict:
+    path = settings.raw_root / f'{video_id}.analysis.json'
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        return {}
+
+
 def similar_rows(target_row: dict, all_rows: list[dict], limit: int = 5):
     target_vec = parse_json_field(target_row.get('embedding_json'))
     out = []
@@ -43,6 +53,23 @@ def similar_rows(target_row: dict, all_rows: list[dict], limit: int = 5):
             out.append((score, row))
     out.sort(key=lambda x: x[0], reverse=True)
     return out[:limit]
+
+
+def score_card(label: str, value: int | float | str):
+    st.metric(label, value)
+
+
+def timeline_item(item: dict):
+    with st.container(border=True):
+        st.markdown(f"**{item.get('time', '??:??')} — {item.get('label', 'Untitled')}**")
+        st.write(item.get('why_it_matters', ''))
+
+
+def cut_item(item: dict):
+    with st.container(border=True):
+        st.markdown(f"**{item.get('time', '??:??')}**")
+        st.write(item.get('reason', ''))
+        st.caption(item.get('clip_angle', ''))
 
 
 tab1, tab2, tab3 = st.tabs(['Library', 'Video Detail', 'Favorite Channels'])
@@ -84,25 +111,83 @@ with tab2:
     options = {f"{row.get('title') or row.get('video_id')} [{row.get('video_id')}]": row for row in rows}
     selected_label = st.selectbox('Chọn video', list(options.keys()))
     selected = options[selected_label]
+    deep = (read_analysis_json(selected.get('video_id') or '').get('deep_analysis') or {})
+    scores = deep.get('scores', {})
+
     st.subheader(selected.get('title') or selected.get('video_id'))
     st.caption(f"{selected.get('channel') or 'N/A'} · {selected.get('video_id')}")
     st.write(selected.get('summary') or '')
 
-    col1, col2 = st.columns(2)
-    with col1:
+    base1, base2 = st.columns(2)
+    with base1:
         st.markdown('**Title variants**')
         st.write(parse_json_field(selected.get('title_variants_json')))
         st.markdown('**Hook variants**')
         st.write(parse_json_field(selected.get('hook_variants_json')))
         st.markdown('**Keywords**')
         st.write(parse_json_field(selected.get('keywords_json')))
-    with col2:
+    with base2:
         st.markdown('**Shorts ideas**')
         st.write(parse_json_field(selected.get('shorts_ideas_json')))
         st.markdown('**Next video ideas**')
         st.write(parse_json_field(selected.get('next_video_ideas_json')))
         st.markdown('**Structure**')
         st.write(parse_json_field(selected.get('structure_json')))
+
+    st.markdown('## Deep Video Analysis')
+    s1, s2, s3, s4, s5 = st.columns(5)
+    with s1:
+        score_card('Hook', scores.get('hook_strength', 'N/A'))
+    with s2:
+        score_card('Pacing', scores.get('pacing', 'N/A'))
+    with s3:
+        score_card('Shorts', scores.get('shorts_potential', 'N/A'))
+    with s4:
+        score_card('Clarity', scores.get('clarity', 'N/A'))
+    with s5:
+        score_card('Retention', scores.get('retention_potential', 'N/A'))
+
+    st.markdown('### Content Drivers')
+    st.write(deep.get('content_drivers', []))
+
+    c_timeline, c_cuts = st.columns(2)
+    with c_timeline:
+        st.markdown('### Timeline Map')
+        timeline = deep.get('timeline_map', [])
+        if timeline:
+            for item in timeline:
+                timeline_item(item)
+        else:
+            st.info('Chưa có timeline map.')
+
+    with c_cuts:
+        st.markdown('### Best Cut Moments (Editor)')
+        cuts = deep.get('best_cut_moments', [])
+        if cuts:
+            for item in cuts:
+                cut_item(item)
+        else:
+            st.info('Chưa có cut moments.')
+
+    st.markdown('### Weak Spots (Critique)')
+    weak_spots = deep.get('weak_spots', [])
+    if weak_spots:
+        for item in weak_spots:
+            st.warning(item)
+    else:
+        st.info('Chưa có weak spots.')
+
+    st.markdown('### Rewrite Modes')
+    rw1, rw2, rw3 = st.columns(3)
+    with rw1:
+        st.markdown('**Viral**')
+        st.write((deep.get('rewrite_modes') or {}).get('viral', []))
+    with rw2:
+        st.markdown('**Educational**')
+        st.write((deep.get('rewrite_modes') or {}).get('educational', []))
+    with rw3:
+        st.markdown('**Storytelling**')
+        st.write((deep.get('rewrite_modes') or {}).get('storytelling', []))
 
     st.markdown('### Similar videos')
     sims = similar_rows(selected, rows)
