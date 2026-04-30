@@ -123,48 +123,75 @@ def _recent_html() -> str:
     cards = []
     for item in items:
         cards.append(f'''
-        <div class="mini-card">
+        <article class="mini-card">
           <img src="{html.escape(item['thumb'])}" alt="thumb">
-          <div>
+          <div class="mini-body">
+            <div class="mini-kicker">Recent result</div>
             <div class="mini-title">{html.escape(item['title'])}</div>
-            <div class="mini-meta">{html.escape(item['channel'])} · {html.escape(item['duration'])}</div>
-            <div class="mini-summary">{html.escape(item['summary'][:140])}{'…' if len(item['summary']) > 140 else ''}</div>
+            <div class="mini-meta">{html.escape(item['channel'])} <span>•</span> {html.escape(item['duration'])}</div>
+            <div class="mini-summary">{html.escape(item['summary'][:160])}{'…' if len(item['summary']) > 160 else ''}</div>
             <div class="mini-links">
-              <a href="/analyze?url={html.escape(item['source_url'])}">Phân tích lại</a>
-              <a href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
-              <a href="/report/{html.escape(item['report_name'])}">Xem report</a>
-              <a href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
+              <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Phân tích lại</a>
+              <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
+              <a class="inline-link" href="/report/{html.escape(item['report_name'])}">Xem report</a>
+              <a class="inline-link" href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
             </div>
           </div>
-        </div>
+        </article>
         ''')
-    return '<div class="card"><h2>Gần đây</h2><div class="recent-grid">' + ''.join(cards) + '</div></div>'
+    return (
+        '<section class="card section-card">'
+        '<div class="section-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
+        '<p>Mở lại nhanh các video đã xử lý, đọc report hoặc quay lại trang analyze.</p></div>'
+        '<div class="recent-grid">' + ''.join(cards) + '</div></section>'
+    )
 
 
 def _nav() -> str:
     return '''
-    <div class="nav card">
-      <a class="nav-link" href="/">Home</a>
-      <a class="nav-link" href="/analyze">Analyze</a>
-      <a class="nav-link" href="/discover">Khám phá kênh</a>
-      <a class="nav-link" href="/favorites">Yêu thích</a>
+    <div class="nav-shell">
+      <div class="brand-block">
+        <div class="brand-mark">YR</div>
+        <div>
+          <div class="brand-name">YouTube Research</div>
+          <div class="brand-note">Research, scripting, production artifacts</div>
+        </div>
+      </div>
+      <div class="nav-links">
+        <a class="nav-link" href="/">Home</a>
+        <a class="nav-link" href="/analyze">Analyze</a>
+        <a class="nav-link" href="/discover">Khám phá kênh</a>
+        <a class="nav-link" href="/favorites">Yêu thích</a>
+      </div>
     </div>
     '''
 
 
-def _analyze_form(initial_urls: str = '') -> str:
+def _analyze_form(initial_urls: str = '', title: str = 'Biến video thành research package', intro: str = 'Dán 1 hoặc nhiều URL YouTube, mỗi dòng một URL. Hệ thống sẽ lấy transcript, phân tích nội dung và xuất report cùng production artifacts.') -> str:
     return f'''
-      <div class="card">
-        <h1>YouTube Research</h1>
-        <p>Nhập 1 hoặc nhiều URL YouTube, mỗi dòng 1 URL. Tool sẽ lấy transcript, phân tích bằng LLM và sinh report Markdown + JSON.</p>
-        <form method="post" action="/analyze" id="analyze-form">
-          <textarea name="urls" placeholder="https://www.youtube.com/watch?v=iG9CE55wbtY\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ">{html.escape(initial_urls)}</textarea>
-          <div class="actions">
-            <button type="submit" id="submit-btn">Phân tích ngay</button>
-            <span class="hint" id="loading-text"></span>
+      <section class="hero card hero-card">
+        <div class="hero-copy">
+          <div class="eyebrow">Control room</div>
+          <h1>{html.escape(title)}</h1>
+          <p>{html.escape(intro)}</p>
+          <div class="hero-points">
+            <span class="tag soft">Transcript + summary</span>
+            <span class="tag soft">Report Markdown</span>
+            <span class="tag soft">Production bundle</span>
           </div>
-        </form>
-      </div>
+        </div>
+        <div class="hero-panel">
+          <form method="post" action="/analyze" id="analyze-form">
+            <label class="field-label" for="urls">YouTube URLs</label>
+            <textarea id="urls" name="urls" placeholder="https://www.youtube.com/watch?v=iG9CE55wbtY\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ">{html.escape(initial_urls)}</textarea>
+            <div class="actions hero-actions">
+              <button type="submit" id="submit-btn">Phân tích ngay</button>
+              <a class="btn secondary" href="/discover">Tìm kênh trước</a>
+            </div>
+            <span class="hint" id="loading-text"></span>
+          </form>
+        </div>
+      </section>
     '''
 
 
@@ -191,53 +218,200 @@ def _page(body: str, script: str = '') -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>YouTube Research</title>
   <style>
-    :root {{ color-scheme: dark; }}
+    :root {{
+      color-scheme: dark;
+      --bg: #09111f;
+      --bg-accent: #13233d;
+      --panel: rgba(10, 21, 39, 0.86);
+      --panel-strong: rgba(12, 27, 49, 0.96);
+      --panel-soft: rgba(19, 35, 61, 0.72);
+      --border: rgba(143, 180, 255, 0.16);
+      --text: #f4f7fb;
+      --muted: #97a8c6;
+      --brand: #ff7a18;
+      --brand-deep: #d95a00;
+      --brand-soft: rgba(255, 122, 24, 0.14);
+      --success: #28b07a;
+      --shadow: 0 24px 60px rgba(1, 8, 20, 0.44);
+    }}
     * {{ box-sizing: border-box; }}
-    body {{ font-family: Inter, system-ui, sans-serif; margin: 0; background: linear-gradient(180deg,#0b1020 0%,#0f172a 100%); color: #e5e7eb; }}
-    .wrap {{ max-width: 1160px; margin: 0 auto; padding: 24px 20px 72px; }}
-    .card {{ background: rgba(18,25,55,.92); border: 1px solid #253056; border-radius: 20px; padding: 22px; box-shadow: 0 12px 40px rgba(0,0,0,.28); margin-bottom: 18px; }}
-    .nav {{ display:flex; gap:10px; padding:14px 18px; position:sticky; top:10px; z-index:10; backdrop-filter: blur(8px); }}
-    .nav-link {{ display:inline-block; padding:10px 14px; border-radius:12px; background:#121a38; color:#dbe4ff; text-decoration:none; border:1px solid #27325b; }}
-    h1 {{ margin: 0 0 8px; font-size: 34px; }}
-    h2 {{ margin: 0 0 14px; font-size: 22px; }}
-    h3 {{ margin: 0 0 10px; font-size: 22px; }}
-    p {{ color: #aab3cf; line-height: 1.6; }}
-    form {{ display: grid; gap: 12px; margin-top: 16px; }}
-    textarea, input, select {{ width: 100%; border-radius: 14px; border: 1px solid #33406f; background: #0f1631; color: #fff; padding: 14px; font: inherit; }}
-    textarea {{ min-height: 128px; resize: vertical; }}
-    button, .btn {{ border: 0; border-radius: 12px; background: #4f46e5; color: white; padding: 12px 18px; font-weight: 600; cursor: pointer; width: fit-content; text-decoration:none; display:inline-block; }}
-    .btn.secondary {{ background: #1f2a4d; color: #c7d2fe; }}
-    .btn.success {{ background: #0f8a5f; color: #eafff8; }}
-    .grid {{ display: grid; gap: 18px; margin-top: 20px; }}
-    .result {{ background: #0f1631; border: 1px solid #33406f; border-radius: 16px; padding: 16px; }}
-    .result-grid {{ display:grid; grid-template-columns: 280px 1fr; gap: 18px; }}
-    .thumb {{ width: 100%; border-radius: 14px; border:1px solid #33406f; background:#0b1020; }}
-    .meta {{ display: grid; grid-template-columns: 150px 1fr; gap: 8px 12px; margin: 12px 0 14px; }}
-    .label {{ color: #8ea0d9; }}
-    .error {{ color: #fca5a5; white-space: pre-wrap; }}
-    .ok {{ color:#9ef0c8; }}
-    a {{ color: #93c5fd; text-decoration: none; }}
-    .summary {{ background:#0b1020; border:1px solid #243052; border-radius:12px; padding:14px; color:#dbe4ff; line-height:1.6; }}
-    .actions {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center; }}
-    .tag {{ display:inline-block; padding:6px 10px; border-radius:999px; background:#18213f; color:#b8c4f7; font-size:13px; margin:0 8px 8px 0; }}
-    .recent-grid, .channel-grid, .fav-grid {{ display:grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap:14px; }}
-    .mini-card, .channel-card, .fav-card {{ display:grid; gap:12px; background:#0f1631; border:1px solid #33406f; border-radius:16px; padding:12px; }}
-    .mini-card {{ grid-template-columns: 120px 1fr; }}
-    .mini-card img {{ width:120px; height:68px; object-fit:cover; border-radius:10px; }}
-    .channel-card img {{ width:100%; max-height:180px; object-fit:cover; border-radius:12px; border:1px solid #33406f; background:#0b1020; }}
-    .mini-title, .channel-title, .fav-title {{ font-weight:700; margin-bottom:4px; }}
-    .mini-meta, .channel-meta, .fav-meta {{ color:#9eb0e4; font-size:14px; margin-bottom:6px; }}
-    .mini-summary, .channel-desc, .fav-note {{ color:#cdd7f7; font-size:14px; line-height:1.45; }}
-    .mini-links {{ display:flex; gap:12px; margin-top:8px; font-size:14px; }}
-    .topbar {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }}
-    .report {{ background:#0b1020; border:1px solid #243052; border-radius:14px; padding:18px; white-space:pre-wrap; line-height:1.65; color:#dbe4ff; overflow:auto; }}
-    .artifact-panel {{ margin-top:16px; border-top:1px solid #243052; padding-top:14px; }}
-    .artifact-toggle {{ display:inline-flex; align-items:center; gap:8px; color:#c7d2fe; font-size:14px; cursor:pointer; }}
-    .artifact-toggle::marker {{ color:#93c5fd; }}
-    .artifact-panel[open] .artifact-toggle {{ color:#e5e7eb; }}
-    .artifact-grid {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }}
-    .hint {{ font-size:14px; color:#8ea0d9; }}
-    @media (max-width: 800px) {{ .result-grid {{ grid-template-columns: 1fr; }} .meta {{ grid-template-columns: 110px 1fr; }} }}
+    html {{ scroll-behavior: smooth; }}
+    body {{
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255, 122, 24, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(38, 170, 255, 0.16), transparent 24%),
+        linear-gradient(180deg, #07101d 0%, #09111f 42%, #0c1627 100%);
+    }}
+    body::before {{
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.55), transparent 88%);
+      pointer-events: none;
+    }}
+    .wrap {{ max-width: 1180px; margin: 0 auto; padding: 24px 20px 72px; position: relative; z-index: 1; }}
+    .nav-shell {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 22px;
+      padding: 16px 20px;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      background: rgba(8, 16, 29, 0.78);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 10px;
+      z-index: 12;
+    }}
+    .brand-block {{ display: flex; align-items: center; gap: 14px; min-width: 0; }}
+    .brand-mark {{
+      width: 46px;
+      height: 46px;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #15100c;
+      background: linear-gradient(135deg, #ffd26f, var(--brand));
+      box-shadow: 0 10px 24px rgba(255, 122, 24, 0.24);
+    }}
+    .brand-name {{ font-size: 17px; font-weight: 700; }}
+    .brand-note {{ color: var(--muted); font-size: 13px; }}
+    .nav-links {{ display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }}
+    .nav-link {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: #eef4ff;
+      text-decoration: none;
+      transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+    }}
+    .nav-link:hover {{ transform: translateY(-1px); background: rgba(255, 122, 24, 0.14); border-color: rgba(255, 122, 24, 0.34); }}
+    .card {{
+      margin-bottom: 18px;
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(12, 23, 42, 0.94), rgba(8, 17, 31, 0.92));
+      box-shadow: var(--shadow);
+    }}
+    .hero-card {{ display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr); gap: 22px; padding: 28px; overflow: hidden; }}
+    .hero-copy {{ padding: 10px 8px 10px 2px; }}
+    .hero-panel {{ padding: 18px; border-radius: 24px; background: linear-gradient(180deg, rgba(17, 31, 54, 0.95), rgba(12, 24, 43, 0.9)); border: 1px solid rgba(255,255,255,0.08); }}
+    .eyebrow {{ color: #ffb36f; text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; font-weight: 700; margin-bottom: 12px; }}
+    h1 {{ margin: 0 0 12px; font-size: clamp(34px, 5vw, 58px); line-height: 1.02; max-width: 12ch; }}
+    h2 {{ margin: 0; font-size: 28px; }}
+    h3 {{ margin: 0 0 12px; font-size: 24px; line-height: 1.15; }}
+    p {{ color: var(--muted); line-height: 1.7; margin: 0; }}
+    .hero-points {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }}
+    .field-label {{ display: inline-block; margin-bottom: 10px; color: #f8c48e; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }}
+    form {{ display: grid; gap: 12px; }}
+    textarea, input, select {{
+      width: 100%;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.09);
+      background: rgba(5, 12, 22, 0.9);
+      color: var(--text);
+      padding: 15px 16px;
+      font: inherit;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+    }}
+    textarea {{ min-height: 184px; resize: vertical; }}
+    textarea:focus, input:focus, select:focus {{ outline: 2px solid rgba(255, 122, 24, 0.5); border-color: rgba(255, 122, 24, 0.6); }}
+    button, .btn {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 46px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--brand), #ff9448);
+      color: #170d06;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 14px 30px rgba(255, 122, 24, 0.22);
+      transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+      width: fit-content;
+    }}
+    button:hover, .btn:hover {{ transform: translateY(-1px); box-shadow: 0 18px 34px rgba(255, 122, 24, 0.28); filter: saturate(1.06); }}
+    .btn.secondary {{ background: rgba(255,255,255,0.05); color: #eff4ff; border: 1px solid rgba(255,255,255,0.09); box-shadow: none; }}
+    .btn.success {{ background: linear-gradient(135deg, #39c98a, #1e9a67); color: #06160f; box-shadow: 0 14px 30px rgba(40, 176, 122, 0.18); }}
+    .actions {{ display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }}
+    .hero-actions {{ margin-top: 8px; }}
+    .grid {{ display: grid; gap: 18px; margin-top: 18px; }}
+    .section-card {{ padding: 24px; }}
+    .section-head {{ display: flex; justify-content: space-between; gap: 18px; align-items: end; margin-bottom: 18px; }}
+    .section-head p {{ max-width: 460px; }}
+    .stats-strip {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }}
+    .stat-card {{ padding: 18px; border-radius: 22px; background: var(--panel-soft); border: 1px solid rgba(255,255,255,0.07); }}
+    .stat-label {{ color: #8ea6ca; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }}
+    .stat-value {{ font-size: 30px; font-weight: 700; margin-top: 8px; }}
+    .stat-note {{ color: var(--muted); font-size: 14px; margin-top: 6px; }}
+    .result {{ padding: 18px; background: linear-gradient(180deg, rgba(13, 27, 48, 0.96), rgba(9, 18, 33, 0.94)); border: 1px solid rgba(255,255,255,0.07); border-radius: 24px; }}
+    .result-grid {{ display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; }}
+    .thumb {{ width: 100%; height: 100%; object-fit: cover; min-height: 170px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); background: #050b14; }}
+    .meta {{ display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 10px 14px; margin: 14px 0 16px; }}
+    .label {{ color: #8ea6ca; text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; }}
+    .error {{ color: #ffb0b0; white-space: pre-wrap; }}
+    .ok {{ color: #9ef0c8; }}
+    a {{ color: #9fd0ff; text-decoration: none; }}
+    .summary {{ padding: 16px 18px; border-radius: 18px; background: rgba(5, 12, 22, 0.84); border: 1px solid rgba(255,255,255,0.06); color: #f0f5ff; line-height: 1.7; }}
+    .tag {{ display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: 999px; background: rgba(255,255,255,0.06); color: #d9e7ff; font-size: 13px; margin: 0 8px 8px 0; border: 1px solid rgba(255,255,255,0.05); }}
+    .tag.soft {{ background: var(--brand-soft); color: #ffd7b6; border-color: rgba(255, 122, 24, 0.2); }}
+    .recent-grid, .channel-grid, .fav-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }}
+    .mini-card, .channel-card, .fav-card {{ border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; background: linear-gradient(180deg, rgba(12, 25, 43, 0.96), rgba(8, 16, 29, 0.92)); overflow: hidden; }}
+    .mini-card {{ display: grid; grid-template-columns: 132px minmax(0, 1fr); }}
+    .mini-card img {{ width: 100%; height: 100%; min-height: 132px; object-fit: cover; }}
+    .mini-body, .channel-card > div, .fav-card > div {{ padding: 16px; }}
+    .channel-card img {{ width: 100%; max-height: 200px; object-fit: cover; border-bottom: 1px solid rgba(255,255,255,0.08); background: #050b14; }}
+    .mini-kicker {{ color: #ffb36f; text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; margin-bottom: 10px; }}
+    .mini-title, .channel-title, .fav-title {{ font-weight: 700; font-size: 19px; line-height: 1.25; margin-bottom: 6px; }}
+    .mini-meta, .channel-meta, .fav-meta {{ color: #9cb1d2; font-size: 14px; margin-bottom: 10px; }}
+    .mini-meta span {{ opacity: 0.7; margin: 0 6px; }}
+    .mini-summary, .channel-desc, .fav-note {{ color: #d3def5; font-size: 14px; line-height: 1.6; }}
+    .mini-links {{ display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }}
+    .inline-link {{ color: #ffd09e; font-size: 14px; }}
+    .inline-link:hover {{ color: #fff1df; }}
+    .topbar {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }}
+    .report {{ padding: 20px; border-radius: 20px; background: rgba(5, 12, 22, 0.88); border: 1px solid rgba(255,255,255,0.06); white-space: pre-wrap; line-height: 1.72; color: #edf4ff; overflow: auto; }}
+    .artifact-panel {{ margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px; }}
+    .artifact-toggle {{ display: inline-flex; align-items: center; gap: 8px; color: #f5c08a; font-size: 14px; cursor: pointer; }}
+    .artifact-toggle::marker {{ color: #ffd09e; }}
+    .artifact-panel[open] .artifact-toggle {{ color: #ffe3be; }}
+    .artifact-grid {{ display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }}
+    .hint {{ font-size: 14px; color: var(--muted); }}
+    code {{ padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,0.08); }}
+    @media (max-width: 960px) {{
+      .hero-card, .result-grid, .mini-card {{ grid-template-columns: 1fr; }}
+      .nav-shell, .section-head {{ align-items: flex-start; }}
+      .stats-strip {{ grid-template-columns: 1fr; }}
+    }}
+    @media (max-width: 720px) {{
+      .wrap {{ padding: 16px 14px 56px; }}
+      .nav-shell {{ border-radius: 20px; padding: 14px; }}
+      .brand-note {{ display: none; }}
+      .nav-links {{ width: 100%; justify-content: flex-start; }}
+      .hero-card, .section-card, .result {{ padding: 16px; }}
+      .meta {{ grid-template-columns: 1fr; gap: 6px; }}
+      h1 {{ max-width: none; }}
+      .mini-card img {{ min-height: 180px; }}
+    }}
   </style>
 </head>
 <body>
@@ -249,7 +423,36 @@ def _page(body: str, script: str = '') -> str:
 
 @app.get('/')
 def index() -> str:
-    body = _analyze_form() + _recent_html()
+    recent_count = len(_recent_items())
+    stats = f'''
+      <section class="section-card card">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Snapshot</div>
+            <h2>Workspace đang sẵn sàng để sản xuất</h2>
+          </div>
+          <p>Đi từ URL sang report, script và production artifacts ngay trong một giao diện gọn hơn.</p>
+        </div>
+        <div class="stats-strip">
+          <div class="stat-card">
+            <div class="stat-label">Recent items</div>
+            <div class="stat-value">{recent_count}</div>
+            <div class="stat-note">Các video gần đây có thể mở lại ngay.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Output set</div>
+            <div class="stat-value">6+</div>
+            <div class="stat-note">Report, markdown, production files và artifact phụ.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Next move</div>
+            <div class="stat-value">Ship</div>
+            <div class="stat-note">Analyze xong là có thể qua bước dựng hoặc refine.</div>
+          </div>
+        </div>
+      </section>
+    '''
+    body = _analyze_form() + stats + _recent_html()
     return _page(body, _analyze_form_script())
 
 
@@ -263,8 +466,12 @@ def analyze() -> str:
         return _page(_analyze_form(raw_urls), _analyze_form_script())
 
     blocks: list[str] = [
-        _analyze_form(raw_urls),
-        '<div class="card"><div class="topbar"><h1 style="margin:0">Kết quả phân tích</h1><a class="btn secondary" href="/analyze">← Phân tích tiếp</a></div><div class="grid">',
+        _analyze_form(
+            raw_urls,
+            title='Analyze video và mở gói output',
+            intro='Giữ nguyên luồng analyze hiện tại nhưng hiển thị lại dưới giao diện rõ ràng hơn để bạn xem kết quả, mở report và quay lại refine nhanh hơn.',
+        ),
+        '<section class="section-card card"><div class="section-head"><div><div class="eyebrow">Output</div><h2>Kết quả phân tích</h2></div><p>Mỗi card gom phần dùng thường xuyên lên trước, còn artifact kỹ thuật nằm trong More artifacts.</p></div><div class="grid">',
     ]
     for url in urls:
         try:
@@ -359,26 +566,42 @@ def discover_page() -> str:
 
     result_html = ''
     if error:
-        result_html = f'<div class="card"><p class="error">{html.escape(error)}</p></div>'
+        result_html = f'<section class="section-card card"><p class="error">{html.escape(error)}</p></section>'
     elif topic:
-        result_html = '<div class="card"><h2>Kết quả</h2><div class="channel-grid">' + ''.join(cards or ['<p class="hint">Không tìm thấy kênh phù hợp.</p>']) + '</div></div>'
+        result_html = (
+            '<section class="section-card card"><div class="section-head"><div><div class="eyebrow">Results</div><h2>Kênh phù hợp</h2></div>'
+            '<p>Danh sách kênh được gom từ các video match tốt nhất với chủ đề bạn vừa tìm.</p></div>'
+            '<div class="channel-grid">' + ''.join(cards or ['<p class="hint">Không tìm thấy kênh phù hợp.</p>']) + '</div></section>'
+        )
 
     body = f'''
-      <div class="card">
-        <h1>Khám phá kênh theo chủ đề</h1>
-        <p>Nhập niche/chủ đề để tìm các kênh YouTube phù hợp. Hệ thống sẽ tìm video theo chủ đề trước, rồi gom lại thành các kênh liên quan nhất — đỡ bị lệch chỉ vì tên kênh chứa keyword.</p>
-        <form method="get" action="/discover">
-          <input type="text" name="topic" value="{html.escape(topic)}" placeholder="VD: bóng đá chiến thuật, giáo dục con cái, review sách">
-          <select name="sort_by">
-            <option value="relevance" {'selected' if sort_by == 'relevance' else ''}>Sắp xếp theo độ liên quan</option>
-            <option value="subs" {'selected' if sort_by == 'subs' else ''}>Sắp xếp theo subscriber</option>
-          </select>
-          <div class="actions">
-            <button type="submit">Tìm kênh</button>
-            <a class="btn secondary" href="/favorites">Xem yêu thích</a>
+      <section class="hero card hero-card">
+        <div class="hero-copy">
+          <div class="eyebrow">Discover</div>
+          <h1>Khám phá kênh theo chủ đề</h1>
+          <p>Nhập niche hoặc topic để tìm các kênh YouTube phù hợp. Hệ thống ưu tiên video match theo chủ đề trước rồi mới gom thành kênh để giảm nhiễu keyword.</p>
+          <div class="hero-points">
+            <span class="tag soft">Topical relevance</span>
+            <span class="tag soft">Channel shortlist</span>
+            <span class="tag soft">Save to favorites</span>
           </div>
-        </form>
-      </div>
+        </div>
+        <div class="hero-panel">
+          <form method="get" action="/discover">
+            <label class="field-label" for="topic">Chủ đề cần tìm</label>
+            <input id="topic" type="text" name="topic" value="{html.escape(topic)}" placeholder="VD: bóng đá chiến thuật, giáo dục con cái, review sách">
+            <label class="field-label" for="sort_by">Kiểu sắp xếp</label>
+            <select id="sort_by" name="sort_by">
+              <option value="relevance" {'selected' if sort_by == 'relevance' else ''}>Sắp xếp theo độ liên quan</option>
+              <option value="subs" {'selected' if sort_by == 'subs' else ''}>Sắp xếp theo subscriber</option>
+            </select>
+            <div class="actions hero-actions">
+              <button type="submit">Tìm kênh</button>
+              <a class="btn secondary" href="/favorites">Xem yêu thích</a>
+            </div>
+          </form>
+        </div>
+      </section>
       {result_html}
     '''
     return _page(body)
@@ -482,12 +705,11 @@ def favorites_page() -> str:
           </div>
         </div>
         ''')
-    body = '<div class="card"><h1>Kênh yêu thích</h1><p>Lưu local tại <code>favorites/channels.json</code>.</p>'
+    body = '<section class="hero card hero-card"><div class="hero-copy"><div class="eyebrow">Favorites</div><h1>Kênh yêu thích</h1><p>Lưu local tại <code>favorites/channels.json</code>. Từ đây bạn có thể mở kênh hoặc analyze hàng loạt theo số lượng video mong muốn.</p><div class="hero-points"><span class="tag soft">Local library</span><span class="tag soft">Batch analyze</span><span class="tag soft">Quick access</span></div></div><div class="hero-panel"><div class="stat-card"><div class="stat-label">Saved channels</div><div class="stat-value">' + str(len(items)) + '</div><div class="stat-note">Danh sách kênh được lưu từ Discover hoặc thêm thủ công sau này.</div></div></div></section>'
     if items:
-        body += '<div class="fav-grid">' + ''.join(cards) + '</div>'
+        body += '<section class="section-card card"><div class="section-head"><div><div class="eyebrow">Collection</div><h2>Danh sách kênh đã lưu</h2></div><p>Chọn số lượng video và kiểu sắp xếp rồi chạy analyze hàng loạt ngay trong card.</p></div><div class="fav-grid">' + ''.join(cards) + '</div></section>'
     else:
-        body += '<p class="hint">Chưa có kênh nào được lưu.</p>'
-    body += '</div>'
+        body += '<section class="section-card card"><p class="hint">Chưa có kênh nào được lưu.</p></section>'
     return _page(body)
 
 
