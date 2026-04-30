@@ -140,6 +140,24 @@ chmod +x run-dashboard.sh
 ```
 Mở URL Streamlit hiện trên terminal.
 
+## Production export cho MoneyPrinter / auto-subtitle / ffmpeg
+Mỗi lần `analyze` hoặc `reindex`, repo sẽ tự sinh package production tại:
+- `outputs/production/<video_id>.production.json`
+- `outputs/production/<video_id>.title.txt`
+- `outputs/production/<video_id>.hook.txt`
+- `outputs/production/<video_id>.script.txt`
+
+Bạn cũng có thể export lại riêng cho video cũ:
+```bash
+./run.sh export-production VIDEO_ID
+```
+
+Package này chứa:
+- input title/hook/script_outline cho MoneyPrinter
+- subtitle cues sơ bộ cho auto-subtitle / caption workflow
+- gợi ý post-process cho ffmpeg/MoviePy
+- best cut moments + visual prompts để dựng short nhanh hơn
+
 ## Ghi chú về optional AI enrich
 Các tính năng sau phụ thuộc package/model cài được trên máy:
 - `sentence-transformers`

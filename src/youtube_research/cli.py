@@ -10,6 +10,7 @@ from .channels import add_favorite_channel, discover_channels, fetch_channel_vid
 from .config import Settings
 from .enrich import build_enrichment, cosine_similarity, infer_topics
 from .indexing import index_video, load_indexed_videos, sync_favorites_to_db
+from .production import write_production_package
 from .reporting import write_json, write_markdown_report
 from .youtube import collect_video_data
 
@@ -29,6 +30,7 @@ def run_analyze(settings: Settings, url: str) -> dict[str, str]:
     transcript_text = '\n'.join(item.get('text', '') for item in video.transcript)
     enrich = build_enrichment(analysis.summary, transcript_text)
     index_video(settings, asdict(video), analysis.to_dict(), enrich=enrich)
+    production = write_production_package(settings.production_root, asdict(video), analysis.to_dict())
 
     return {
         'video_id': video.video_id,
@@ -36,6 +38,10 @@ def run_analyze(settings: Settings, url: str) -> dict[str, str]:
         'analysis': str(analysis_path),
         'report': str(report_path),
         'db': str(settings.db_path),
+        'production_package': production['package'],
+        'production_title': production['title'],
+        'production_hook': production['hook'],
+        'production_script': production['script'],
     }
 
 
@@ -112,6 +118,7 @@ def cmd_reindex(args: argparse.Namespace) -> int:
         transcript_text = '\n'.join(item.get('text', '') for item in transcript)
         enrich = build_enrichment(analysis.get('summary', ''), transcript_text)
         index_video(settings, raw, analysis, enrich=enrich)
+        write_production_package(settings.production_root, raw, analysis)
     sync_favorites_to_db(settings, load_favorites(project_root))
     rows = load_indexed_videos(settings)
     labels = infer_topics([row.get('summary') or '' for row in rows])
@@ -178,6 +185,20 @@ def cmd_analyze_channel(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_export_production(args: argparse.Namespace) -> int:
+    project_root = Path(__file__).resolve().parents[2]
+    settings = Settings.load(project_root)
+    raw_path = settings.raw_root / f'{args.video_id}.json'
+    analysis_path = settings.raw_root / f'{args.video_id}.analysis.json'
+    if not raw_path.exists() or not analysis_path.exists():
+        raise SystemExit(f'Không thấy đủ raw/analysis cho video_id={args.video_id}')
+    raw = json.loads(raw_path.read_text(encoding='utf-8'))
+    analysis = json.loads(analysis_path.read_text(encoding='utf-8'))
+    result = write_production_package(settings.production_root, raw, analysis)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='youtube-research')
     sub = parser.add_subparsers(dest='command', required=True)
@@ -225,6 +246,10 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_channel.add_argument('--limit', type=int, default=5, help='Số video cần lấy')
     analyze_channel.add_argument('--order', choices=['date', 'viewCount', 'rating', 'relevance', 'title', 'videoCount'], default='date', help='Cách lấy video từ channel')
     analyze_channel.set_defaults(func=cmd_analyze_channel)
+
+    export_prod = sub.add_parser('export-production', help='Xuất package cho MoneyPrinter / subtitle / ffmpeg từ 1 video đã analyze')
+    export_prod.add_argument('video_id', help='Video ID đã có raw + analysis')
+    export_prod.set_defaults(func=cmd_export_production)
     return parser
 
 

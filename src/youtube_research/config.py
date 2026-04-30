@@ -23,6 +23,7 @@ class Settings:
     output_root: Path
     raw_root: Path
     reports_root: Path
+    production_root: Path
     db_path: Path
     api_key: str | None
     youtube_api_key: str | None
@@ -36,15 +37,18 @@ class Settings:
         output_root = project_root / 'outputs'
         raw_root = output_root / 'raw'
         reports_root = output_root / 'reports'
+        production_root = output_root / 'production'
         db_path = output_root / 'youtube_research.duckdb'
         raw_root.mkdir(parents=True, exist_ok=True)
         reports_root.mkdir(parents=True, exist_ok=True)
+        production_root.mkdir(parents=True, exist_ok=True)
         return cls(
             workspace_root=project_root.parent,
             project_root=project_root,
             output_root=output_root,
             raw_root=raw_root,
             reports_root=reports_root,
+            production_root=production_root,
             db_path=db_path,
             api_key=os.getenv('OPENAI_API_KEY'),
             youtube_api_key=os.getenv('YOUTUBE_API_KEY'),

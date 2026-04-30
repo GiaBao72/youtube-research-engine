@@ -58,6 +58,18 @@ git pull origin main
 .venv\Scripts\pip install -r requirements.txt
 ```
 
+## 8) Production export
+Sau khi analyze video, repo sẽ tự sinh thêm package để nối sang MoneyPrinter / subtitle / ffmpeg tại:
+- `outputs\production\<video_id>.production.json`
+- `outputs\production\<video_id>.title.txt`
+- `outputs\production\<video_id>.hook.txt`
+- `outputs\production\<video_id>.script.txt`
+
+Có thể export lại riêng bằng:
+```powershell
+.venv\Scripts\python -m youtube_research.cli export-production VIDEO_ID
+```
+
 ## 8) Nếu lỗi thường gặp
 ### Không tìm thấy Python
 - cài lại Python
