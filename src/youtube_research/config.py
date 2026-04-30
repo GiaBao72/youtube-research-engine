@@ -5,7 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-def _load_dotenv(dotenv_path: Path) -> None:
+def _parse_dotenv_value(raw_value: str) -> str:
+    value = raw_value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
+
+
+def _load_dotenv(dotenv_path: Path, *, override: bool = True) -> None:
     if not dotenv_path.exists():
         return
     for line in dotenv_path.read_text(encoding='utf-8').splitlines():
@@ -13,7 +20,10 @@ def _load_dotenv(dotenv_path: Path) -> None:
         if not line or line.startswith('#') or '=' not in line:
             continue
         key, value = line.split('=', 1)
-        os.environ.setdefault(key.strip(), value.strip())
+        env_key = key.strip()
+        env_value = _parse_dotenv_value(value)
+        if override or env_key not in os.environ:
+            os.environ[env_key] = env_value
 
 
 @dataclass
@@ -34,7 +44,11 @@ class Settings:
 
     @classmethod
     def load(cls, project_root: Path) -> 'Settings':
-        _load_dotenv(project_root / '.env')
+        dotenv_path = project_root / '.env'
+        if dotenv_path.exists():
+            _load_dotenv(dotenv_path)
+        else:
+            _load_dotenv(project_root / '.env.example', override=False)
         output_root = project_root / 'outputs'
         raw_root = output_root / 'raw'
         reports_root = output_root / 'reports'

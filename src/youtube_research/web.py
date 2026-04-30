@@ -120,30 +120,37 @@ def _recent_html() -> str:
     items = _recent_items()
     if not items:
         return ''
-    cards = []
+    rows = []
     for item in items:
-        cards.append(f'''
-        <article class="mini-card">
-          <img src="{html.escape(item['thumb'])}" alt="thumb">
-          <div class="mini-body">
-            <div class="mini-kicker">Recent result</div>
-            <div class="mini-title">{html.escape(item['title'])}</div>
-            <div class="mini-meta">{html.escape(item['channel'])} <span>•</span> {html.escape(item['duration'])}</div>
-            <div class="mini-summary">{html.escape(item['summary'][:160])}{'…' if len(item['summary']) > 160 else ''}</div>
-            <div class="mini-links">
+        rows.append(f'''
+        <tr>
+          <td>
+            <div class="recent-video">
+              <img src="{html.escape(item['thumb'])}" alt="thumb">
+              <div>
+                <div class="recent-title">{html.escape(item['title'])}</div>
+                <div class="recent-sub">{html.escape(item['summary'][:120])}{'…' if len(item['summary']) > 120 else ''}</div>
+              </div>
+            </div>
+          </td>
+          <td>{html.escape(item['channel'])}</td>
+          <td>{html.escape(item['duration'])}</td>
+          <td>
+            <div class="table-actions">
               <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Phân tích lại</a>
               <a class="inline-link" href="/analyze?url={html.escape(item['source_url'])}">Mở Analyze</a>
               <a class="inline-link" href="/report/{html.escape(item['report_name'])}">Xem report</a>
               <a class="inline-link" href="/files/raw/{html.escape(item['analysis_name'])}">JSON</a>
             </div>
-          </div>
-        </article>
+          </td>
+        </tr>
         ''')
     return (
         '<section class="card section-card">'
         '<div class="section-head"><div><div class="eyebrow">Library</div><h2>Phân tích gần đây</h2></div>'
         '<p>Mở lại nhanh các video đã xử lý, đọc report hoặc quay lại trang analyze.</p></div>'
-        '<div class="recent-grid">' + ''.join(cards) + '</div></section>'
+        '<div class="table-shell"><table class="recent-table"><thead><tr><th>Video</th><th>Kênh</th><th>Thời lượng</th><th>Hành động</th></tr></thead><tbody>'
+        + ''.join(rows) + '</tbody></table></div></section>'
     )
 
 
@@ -375,6 +382,16 @@ def _page(body: str, script: str = '') -> str:
     .tag {{ display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: 999px; background: rgba(255,255,255,0.06); color: #d9e7ff; font-size: 13px; margin: 0 8px 8px 0; border: 1px solid rgba(255,255,255,0.05); }}
     .tag.soft {{ background: var(--brand-soft); color: #ffd7b6; border-color: rgba(255, 122, 24, 0.2); }}
     .recent-grid, .channel-grid, .fav-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }}
+    .table-shell {{ overflow-x: auto; border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; background: rgba(5, 12, 22, 0.58); }}
+    .recent-table {{ width: 100%; border-collapse: collapse; min-width: 860px; }}
+    .recent-table th, .recent-table td {{ padding: 16px 18px; text-align: left; vertical-align: top; border-bottom: 1px solid rgba(255,255,255,0.07); }}
+    .recent-table th {{ color: #8ea6ca; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; background: rgba(255,255,255,0.03); }}
+    .recent-table tbody tr:last-child td {{ border-bottom: 0; }}
+    .recent-video {{ display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 14px; align-items: start; }}
+    .recent-video img {{ width: 124px; height: 72px; object-fit: cover; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); }}
+    .recent-title {{ font-weight: 700; font-size: 17px; line-height: 1.3; margin-bottom: 6px; }}
+    .recent-sub {{ color: #aebddb; font-size: 14px; line-height: 1.55; }}
+    .table-actions {{ display: flex; flex-wrap: wrap; gap: 10px 12px; min-width: 220px; }}
     .mini-card, .channel-card, .fav-card {{ border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; background: linear-gradient(180deg, rgba(12, 25, 43, 0.96), rgba(8, 16, 29, 0.92)); overflow: hidden; }}
     .mini-card {{ display: grid; grid-template-columns: 132px minmax(0, 1fr); }}
     .mini-card img {{ width: 100%; height: 100%; min-height: 132px; object-fit: cover; }}
@@ -398,7 +415,7 @@ def _page(body: str, script: str = '') -> str:
     .hint {{ font-size: 14px; color: var(--muted); }}
     code {{ padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,0.08); }}
     @media (max-width: 960px) {{
-      .hero-card, .result-grid, .mini-card {{ grid-template-columns: 1fr; }}
+      .hero-card, .result-grid {{ grid-template-columns: 1fr; }}
       .nav-shell, .section-head {{ align-items: flex-start; }}
       .stats-strip {{ grid-template-columns: 1fr; }}
     }}
@@ -410,7 +427,9 @@ def _page(body: str, script: str = '') -> str:
       .hero-card, .section-card, .result {{ padding: 16px; }}
       .meta {{ grid-template-columns: 1fr; gap: 6px; }}
       h1 {{ max-width: none; }}
-      .mini-card img {{ min-height: 180px; }}
+      .recent-table {{ min-width: 680px; }}
+      .recent-video {{ grid-template-columns: 96px minmax(0, 1fr); }}
+      .recent-video img {{ width: 96px; height: 60px; }}
     }}
   </style>
 </head>
