@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import streamlit as st
@@ -15,7 +16,7 @@ project_root = Path(__file__).resolve().parents[2]
 settings = Settings.load(project_root)
 
 st.title('YouTube Research Dashboard')
-st.caption('Dashboard local cho thư viện video đã phân tích, semantic lookup, và favorite channels.')
+st.caption('Dashboard local cho thư viện video đã phân tích, semantic lookup, favorite channels, và channel summary.')
 
 rows = load_indexed_videos(settings)
 favorites = load_favorite_channels(settings)
@@ -70,6 +71,43 @@ def cut_item(item: dict):
         st.markdown(f"**{item.get('time', '??:??')}**")
         st.write(item.get('reason', ''))
         st.caption(item.get('clip_angle', ''))
+
+
+def summarize_channel(channel_name: str, channel_rows: list[dict]):
+    analyses = [read_analysis_json(row.get('video_id') or '') for row in channel_rows]
+    analyses = [a for a in analyses if a]
+    if not analyses:
+        return None
+
+    score_acc = defaultdict(list)
+    content_drivers = Counter()
+    weak_spots = Counter()
+    title_variants = Counter()
+    hook_variants = Counter()
+    shorts_ideas = Counter()
+
+    for analysis in analyses:
+        deep = analysis.get('deep_analysis') or {}
+        for k, v in (deep.get('scores') or {}).items():
+            if isinstance(v, (int, float)):
+                score_acc[k].append(v)
+        content_drivers.update(deep.get('content_drivers') or [])
+        weak_spots.update(deep.get('weak_spots') or [])
+        title_variants.update(analysis.get('title_variants') or [])
+        hook_variants.update(analysis.get('hook_variants') or [])
+        shorts_ideas.update(analysis.get('shorts_ideas') or [])
+
+    avg_scores = {k: round(sum(v) / len(v), 2) for k, v in score_acc.items() if v}
+    return {
+        'channel_name': channel_name,
+        'video_count': len(channel_rows),
+        'avg_scores': avg_scores,
+        'common_drivers': [x for x, _ in content_drivers.most_common(5)],
+        'common_weak_spots': [x for x, _ in weak_spots.most_common(5)],
+        'title_patterns': [x for x, _ in title_variants.most_common(5)],
+        'hook_patterns': [x for x, _ in hook_variants.most_common(5)],
+        'shorts_patterns': [x for x, _ in shorts_ideas.most_common(5)],
+    }
 
 
 tab1, tab2, tab3 = st.tabs(['Library', 'Video Detail', 'Favorite Channels'])
@@ -204,6 +242,42 @@ with tab3:
     st.write(f'Favorite channels: {len(favorites)}')
     if not favorites:
         st.info('Chưa có favorite channels trong DB. Hãy lưu từ web UI rồi chạy reindex nếu cần sync.')
+
+    channel_names = sorted({row.get('channel') for row in rows if row.get('channel')})
+    selected_summary_channel = st.selectbox('Channel summary', ['-- Chọn channel --'] + channel_names)
+    if selected_summary_channel != '-- Chọn channel --':
+        channel_rows = [row for row in rows if row.get('channel') == selected_summary_channel]
+        summary = summarize_channel(selected_summary_channel, channel_rows)
+        if summary:
+            st.markdown('## Channel Summary')
+            st.caption(f"{summary['channel_name']} · {summary['video_count']} video đã phân tích")
+            sc1, sc2, sc3, sc4, sc5 = st.columns(5)
+            with sc1:
+                score_card('Hook', summary['avg_scores'].get('hook_strength', 'N/A'))
+            with sc2:
+                score_card('Pacing', summary['avg_scores'].get('pacing', 'N/A'))
+            with sc3:
+                score_card('Shorts', summary['avg_scores'].get('shorts_potential', 'N/A'))
+            with sc4:
+                score_card('Clarity', summary['avg_scores'].get('clarity', 'N/A'))
+            with sc5:
+                score_card('Retention', summary['avg_scores'].get('retention_potential', 'N/A'))
+
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown('### Common Drivers')
+                st.write(summary['common_drivers'])
+                st.markdown('### Hook Patterns')
+                st.write(summary['hook_patterns'])
+                st.markdown('### Shorts Patterns')
+                st.write(summary['shorts_patterns'])
+            with c2:
+                st.markdown('### Common Weak Spots')
+                st.write(summary['common_weak_spots'])
+                st.markdown('### Title Patterns')
+                st.write(summary['title_patterns'])
+
+    st.markdown('## Favorite Channels')
     for row in favorites:
         with st.container(border=True):
             st.subheader(row.get('name') or 'Unknown')
